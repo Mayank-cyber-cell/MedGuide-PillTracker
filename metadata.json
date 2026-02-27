@@ -1,0 +1,7 @@
+{
+  "name": "MedGuide",
+  "description": "Smart Pill Tracker & Safety Monitor with OpenFDA integration and emergency alerts.",
+  "requestFramePermissions": [
+    "notifications"
+  ]
+}

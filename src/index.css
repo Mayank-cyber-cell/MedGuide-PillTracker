@@ -1,0 +1,35 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+}
+
+:root {
+  --bg-primary: #f8fafc;
+  --text-primary: #1e293b;
+  --accent-primary: #0ea5e9;
+}
+
+.high-contrast {
+  --bg-primary: #000000;
+  --text-primary: #ffffff;
+  --accent-primary: #ffff00;
+}
+
+.elderly-mode {
+  font-size: 1.25rem;
+}
+
+.elderly-mode h1 {
+  font-size: 2.5rem;
+}
+
+.elderly-mode button {
+  padding: 1.5rem 2rem;
+}
+
+body {
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  transition: all 0.2s ease-in-out;
+}
