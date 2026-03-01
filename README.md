@@ -9,7 +9,7 @@
 [![License](https://img.shields.io/badge/License-MIT-green?style=flat)](LICENSE)
 [![Status](https://img.shields.io/badge/Status-Active-brightgreen?style=flat)]()
 
-**🚀 An intelligent, accessible medication tracking solution **
+**🚀 An intelligent, accessible medication tracking solution**
 
 [🌐 Live Demo](#) • [📖 Documentation](#features) • [🐛 Report Bug](#) • [✨ Request Feature](#)
 
