@@ -1,6 +1,6 @@
 import express from "express";
 import { createServer as createViteServer } from "vite";
-import Database from "better-sqlite3";
+import { createClient } from "@supabase/supabase-js";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import path from "path";
@@ -8,46 +8,11 @@ import dotenv from "dotenv";
 
 dotenv.config();
 
-const db = new Database("medguide.db");
+const supabaseUrl = process.env.VITE_SUPABASE_URL!;
+const supabaseKey = process.env.VITE_SUPABASE_ANON_KEY!;
+const supabase = createClient(supabaseUrl, supabaseKey);
+
 const JWT_SECRET = process.env.JWT_SECRET || "medguide-secret-key-123";
-
-// Initialize Database
-db.exec(`
-  CREATE TABLE IF NOT EXISTS users (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT NOT NULL,
-    email TEXT UNIQUE NOT NULL,
-    password TEXT NOT NULL,
-    emergency_contact_name TEXT,
-    emergency_contact_email TEXT,
-    emergency_contact_phone TEXT
-  );
-
-  CREATE TABLE IF NOT EXISTS medications (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id INTEGER NOT NULL,
-    name TEXT NOT NULL,
-    dosage TEXT NOT NULL,
-    frequency TEXT NOT NULL,
-    reminder_time TEXT NOT NULL,
-    days_of_week TEXT, -- Comma separated indices "0,1,2,3,4,5,6"
-    start_date TEXT NOT NULL,
-    end_date TEXT,
-    risk_level TEXT,
-    side_effects TEXT,
-    total_reports INTEGER,
-    serious_cases INTEGER,
-    FOREIGN KEY (user_id) REFERENCES users (id)
-  );
-
-  CREATE TABLE IF NOT EXISTS adherence (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    medication_id INTEGER NOT NULL,
-    status TEXT NOT NULL, -- 'taken', 'skipped', 'missed'
-    timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (medication_id) REFERENCES medications (id)
-  );
-`);
 
 async function startServer() {
   const app = express();
@@ -71,42 +36,89 @@ async function startServer() {
   app.post("/api/register", async (req, res) => {
     const { name, email, password } = req.body;
     try {
-      const hashedPassword = await bcrypt.hash(password, 10);
-      const stmt = db.prepare("INSERT INTO users (name, email, password) VALUES (?, ?, ?)");
-      const result = stmt.run(name, email, hashedPassword);
-      res.status(201).json({ id: result.lastInsertRowid });
-    } catch (error: any) {
-      if (error.message.includes("UNIQUE")) {
-        res.status(400).json({ error: "Email already exists" });
-      } else {
-        res.status(500).json({ error: error.message });
+      // Check if user already exists
+      const { data: existingUser } = await supabase
+        .from('users')
+        .select('id')
+        .eq('email', email)
+        .maybeSingle();
+
+      if (existingUser) {
+        return res.status(400).json({ error: "Email already exists" });
       }
+
+      const hashedPassword = await bcrypt.hash(password, 10);
+
+      const { data, error } = await supabase
+        .from('users')
+        .insert([{ name, email, password: hashedPassword }])
+        .select()
+        .single();
+
+      if (error) {
+        throw error;
+      }
+
+      res.status(201).json({ id: data.id });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
     }
   });
 
   app.post("/api/login", async (req, res) => {
     const { email, password } = req.body;
-    const user = db.prepare("SELECT * FROM users WHERE email = ?").get(email) as any;
 
-    if (!user || !(await bcrypt.compare(password, user.password))) {
-      return res.status(401).json({ error: "Invalid credentials" });
+    try {
+      const { data: user, error } = await supabase
+        .from('users')
+        .select('*')
+        .eq('email', email)
+        .maybeSingle();
+
+      if (error || !user || !(await bcrypt.compare(password, user.password))) {
+        return res.status(401).json({ error: "Invalid credentials" });
+      }
+
+      const token = jwt.sign({ id: user.id, email: user.email, name: user.name }, JWT_SECRET);
+      res.json({ token, user: { id: user.id, name: user.name, email: user.email } });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
     }
-
-    const token = jwt.sign({ id: user.id, email: user.email, name: user.name }, JWT_SECRET);
-    res.json({ token, user: { id: user.id, name: user.name, email: user.email } });
   });
 
   // User Profile / Emergency Contact
-  app.get("/api/user", authenticateToken, (req: any, res) => {
-    const user = db.prepare("SELECT id, name, email, emergency_contact_name, emergency_contact_email, emergency_contact_phone FROM users WHERE id = ?").get(req.user.id);
-    res.json(user);
+  app.get("/api/user", authenticateToken, async (req: any, res) => {
+    try {
+      const { data: user, error } = await supabase
+        .from('users')
+        .select('id, name, email, emergency_contact_name, emergency_contact_email, emergency_contact_phone')
+        .eq('id', req.user.id)
+        .single();
+
+      if (error) throw error;
+      res.json(user);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
   });
 
-  app.post("/api/emergency-contact", authenticateToken, (req: any, res) => {
+  app.post("/api/emergency-contact", authenticateToken, async (req: any, res) => {
     const { name, email, phone } = req.body;
-    db.prepare("UPDATE users SET emergency_contact_name = ?, emergency_contact_email = ?, emergency_contact_phone = ? WHERE id = ?")
-      .run(name, email, phone, req.user.id);
-    res.json({ success: true });
+    try {
+      const { error } = await supabase
+        .from('users')
+        .update({
+          emergency_contact_name: name,
+          emergency_contact_email: email,
+          emergency_contact_phone: phone
+        })
+        .eq('id', req.user.id);
+
+      if (error) throw error;
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
   });
 
   // OpenFDA Proxy
@@ -134,79 +146,167 @@ async function startServer() {
   });
 
   // Medication Routes
-  app.get("/api/medicines", authenticateToken, (req: any, res) => {
-    const medicines = db.prepare("SELECT * FROM medications WHERE user_id = ?").all(req.user.id);
-    res.json(medicines);
+  app.get("/api/medicines", authenticateToken, async (req: any, res) => {
+    try {
+      const { data: medicines, error } = await supabase
+        .from('medications')
+        .select('*')
+        .eq('user_id', req.user.id)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      res.json(medicines);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
   });
 
-  app.post("/api/medicines", authenticateToken, (req: any, res) => {
+  app.post("/api/medicines", authenticateToken, async (req: any, res) => {
     const { name, dosage, frequency, reminder_time, days_of_week, start_date, end_date, risk_level, side_effects, total_reports, serious_cases } = req.body;
-    const stmt = db.prepare(`
-      INSERT INTO medications (user_id, name, dosage, frequency, reminder_time, days_of_week, start_date, end_date, risk_level, side_effects, total_reports, serious_cases)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `);
-    const result = stmt.run(req.user.id, name, dosage, frequency, reminder_time, days_of_week, start_date, end_date, risk_level, side_effects, total_reports, serious_cases);
-    res.status(201).json({ id: result.lastInsertRowid });
+    try {
+      const { data, error } = await supabase
+        .from('medications')
+        .insert([{
+          user_id: req.user.id,
+          name,
+          dosage,
+          frequency,
+          reminder_time,
+          days_of_week,
+          start_date,
+          end_date,
+          risk_level,
+          side_effects,
+          total_reports,
+          serious_cases
+        }])
+        .select()
+        .single();
+
+      if (error) throw error;
+      res.status(201).json({ id: data.id });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
   });
 
-  app.delete("/api/medicines/:id", authenticateToken, (req: any, res) => {
-    db.prepare("DELETE FROM medications WHERE id = ? AND user_id = ?").run(req.params.id, req.user.id);
-    res.json({ success: true });
+  app.delete("/api/medicines/:id", authenticateToken, async (req: any, res) => {
+    try {
+      const { error } = await supabase
+        .from('medications')
+        .delete()
+        .eq('id', req.params.id)
+        .eq('user_id', req.user.id);
+
+      if (error) throw error;
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
   });
 
   // Adherence Routes
-  app.get("/api/adherence", authenticateToken, (req: any, res) => {
-    const adherence = db.prepare(`
-      SELECT a.*, m.name as medicine_name 
-      FROM adherence a 
-      JOIN medications m ON a.medication_id = m.id 
-      WHERE m.user_id = ?
-      ORDER BY a.timestamp DESC
-    `).all(req.user.id);
-    res.json(adherence);
+  app.get("/api/adherence", authenticateToken, async (req: any, res) => {
+    try {
+      const { data: adherence, error } = await supabase
+        .from('adherence')
+        .select(`
+          *,
+          medications!inner(name, user_id)
+        `)
+        .eq('medications.user_id', req.user.id)
+        .order('timestamp', { ascending: false });
+
+      if (error) throw error;
+
+      const formattedData = adherence.map((a: any) => ({
+        ...a,
+        medicine_name: a.medications.name
+      }));
+
+      res.json(formattedData);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
   });
 
-  app.post("/api/adherence", authenticateToken, (req: any, res) => {
+  app.post("/api/adherence", authenticateToken, async (req: any, res) => {
     const { medication_id, status } = req.body;
-    
-    // Verify ownership
-    const med = db.prepare("SELECT * FROM medications WHERE id = ? AND user_id = ?").get(medication_id, req.user.id);
-    if (!med) return res.status(403).json({ error: "Forbidden" });
 
-    db.prepare("INSERT INTO adherence (medication_id, status) VALUES (?, ?)").run(medication_id, status);
+    try {
+      // Verify ownership
+      const { data: med, error: medError } = await supabase
+        .from('medications')
+        .select('*')
+        .eq('id', medication_id)
+        .eq('user_id', req.user.id)
+        .maybeSingle();
 
-    // Adherence Logic Check
-    if (status === 'missed') {
-      checkEmergencyEscalation(req.user.id);
+      if (medError || !med) {
+        return res.status(403).json({ error: "Forbidden" });
+      }
+
+      const { error } = await supabase
+        .from('adherence')
+        .insert([{ medication_id, status }]);
+
+      if (error) throw error;
+
+      // Adherence Logic Check
+      if (status === 'missed') {
+        await checkEmergencyEscalation(req.user.id);
+      }
+
+      res.status(201).json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
     }
-
-    res.status(201).json({ success: true });
   });
 
   // Emergency Escalation Logic
-  function checkEmergencyEscalation(userId: number) {
-    const user = db.prepare("SELECT * FROM users WHERE id = ?").get(userId) as any;
-    if (!user.emergency_contact_email) return;
+  async function checkEmergencyEscalation(userId: string) {
+    try {
+      const { data: user } = await supabase
+        .from('users')
+        .select('*')
+        .eq('id', userId)
+        .single();
 
-    // Check 3 consecutive missed
-    const recentAdherence = db.prepare(`
-      SELECT status FROM adherence a
-      JOIN medications m ON a.medication_id = m.id
-      WHERE m.user_id = ?
-      ORDER BY a.timestamp DESC LIMIT 3
-    `).all(userId) as any[];
+      if (!user?.emergency_contact_email) return;
 
-    const consecutiveMissed = recentAdherence.length === 3 && recentAdherence.every(a => a.status === 'missed');
+      // Check 3 consecutive missed
+      const { data: recentAdherence } = await supabase
+        .from('adherence')
+        .select(`
+          status,
+          medications!inner(user_id)
+        `)
+        .eq('medications.user_id', userId)
+        .order('timestamp', { ascending: false })
+        .limit(3);
 
-    // Check 5 missed in 7 days
-    const weeklyMissed = db.prepare(`
-      SELECT COUNT(*) as count FROM adherence a
-      JOIN medications m ON a.medication_id = m.id
-      WHERE m.user_id = ? AND a.status = 'missed' AND a.timestamp > datetime('now', '-7 days')
-    `).get(userId) as any;
+      const consecutiveMissed = recentAdherence && recentAdherence.length === 3 &&
+        recentAdherence.every((a: any) => a.status === 'missed');
 
-    if (consecutiveMissed || weeklyMissed.count >= 5) {
-      sendEmergencyAlert(user);
+      // Check 5 missed in 7 days
+      const sevenDaysAgo = new Date();
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+
+      const { data: weeklyMissed } = await supabase
+        .from('adherence')
+        .select(`
+          id,
+          medications!inner(user_id)
+        `, { count: 'exact' })
+        .eq('medications.user_id', userId)
+        .eq('status', 'missed')
+        .gte('timestamp', sevenDaysAgo.toISOString());
+
+      if (consecutiveMissed || (weeklyMissed && weeklyMissed.length >= 5)) {
+        sendEmergencyAlert(user);
+      }
+    } catch (error) {
+      console.error('Error checking emergency escalation:', error);
     }
   }
 
