@@ -210,6 +210,53 @@ npm install
 
 ## 🚀 Deployment
 
+### Important: Full-Stack Architecture
+
+This application requires **both frontend and backend** deployment:
+
+- **Frontend**: Static React app (HTML/JS/CSS)
+- **Backend**: Express.js API server (`server.ts`)
+
+### Quick Deployment Guide
+
+#### Option 1: Deploy Backend + Frontend Separately (Recommended)
+
+**Backend (Express API):**
+1. Deploy to Heroku, Railway, Render, or DigitalOcean
+2. Set environment variables:
+   - `VITE_SUPABASE_URL`
+   - `VITE_SUPABASE_ANON_KEY`
+   - `JWT_SECRET`
+   - `NODE_ENV=production`
+3. Note your backend URL (e.g., `https://api.medguide.com`)
+
+**Frontend (React):**
+1. Deploy to Vercel, Netlify, or any static host
+2. Set environment variable: `VITE_API_URL=https://your-backend-url.com/api`
+3. Build and deploy: `npm run build`
+
+#### Option 2: Migrate to Supabase Edge Functions
+
+Convert Express routes to serverless Edge Functions for a fully managed solution. See `DEPLOYMENT.md` for detailed migration guide.
+
+#### Environment Variables
+
+**Backend:**
+```env
+VITE_SUPABASE_URL=your_supabase_url
+VITE_SUPABASE_ANON_KEY=your_supabase_key
+JWT_SECRET=your_secret_key
+ALLOWED_ORIGINS=https://your-frontend.vercel.app
+NODE_ENV=production
+```
+
+**Frontend:**
+```env
+VITE_API_URL=https://your-backend.herokuapp.com/api
+VITE_SUPABASE_URL=your_supabase_url
+VITE_SUPABASE_ANON_KEY=your_supabase_key
+```
+
 ### Build for Production
 ```bash
 npm run build
@@ -220,11 +267,16 @@ npm run build
 npm run preview
 ```
 
+### Troubleshooting Deployment
+
+If you get `"Unexpected token 'T', 'The page c'... is not valid JSON"` error:
+- Your backend is not deployed or `VITE_API_URL` is not configured
+- See `DEPLOYMENT.md` for detailed troubleshooting steps
+
 ### Deploy to Cloud
-- ☁️ **Vercel** - Recommended for React apps
-- 🚀 **Netlify** - Full-stack deployment
-- 🏗️ **Azure** - Enterprise hosting
-- ⚡ **Heroku** - Quick deployment
+- **Backend**: Heroku, Railway, Render, DigitalOcean App Platform
+- **Frontend**: Vercel, Netlify, Cloudflare Pages
+- **Serverless**: Supabase Edge Functions, Vercel Functions, Netlify Functions
 
 ---
 

@@ -18,6 +18,37 @@ async function startServer() {
   const app = express();
   app.use(express.json());
 
+  // CORS middleware for production
+  app.use((req, res, next) => {
+    const allowedOrigins = process.env.ALLOWED_ORIGINS
+      ? process.env.ALLOWED_ORIGINS.split(',')
+      : ['*'];
+
+    const origin = req.headers.origin;
+    if (allowedOrigins.includes('*') || (origin && allowedOrigins.includes(origin))) {
+      res.header('Access-Control-Allow-Origin', origin || '*');
+    }
+
+    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    res.header('Access-Control-Allow-Credentials', 'true');
+
+    if (req.method === 'OPTIONS') {
+      return res.sendStatus(200);
+    }
+    next();
+  });
+
+  // Health check endpoint
+  app.get('/api/health', (req, res) => {
+    res.json({
+      status: 'healthy',
+      timestamp: new Date().toISOString(),
+      environment: process.env.NODE_ENV || 'development',
+      database: supabaseUrl ? 'connected' : 'not configured'
+    });
+  });
+
   // Middleware to verify JWT
   const authenticateToken = (req: any, res: any, next: any) => {
     const authHeader = req.headers['authorization'];
