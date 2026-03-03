@@ -25,6 +25,12 @@ export default function Register() {
     }
   };
 
+  const handleDemoRegister = () => {
+    setName('Demo User');
+    setEmail('test@example.com');
+    setPassword('password123');
+  };
+
   return (
     <div className="max-w-md mx-auto mt-12">
       <div className="bg-white p-8 rounded-2xl shadow-xl border border-gray-100">
@@ -96,6 +102,25 @@ export default function Register() {
             {loading ? 'Creating account...' : 'Create Account'}
           </button>
         </form>
+
+        <div className="mt-6">
+          <div className="relative">
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-gray-200"></div>
+            </div>
+            <div className="relative flex justify-center text-sm">
+              <span className="px-4 bg-white text-gray-500 font-medium">OR</span>
+            </div>
+          </div>
+
+          <button
+            onClick={handleDemoRegister}
+            type="button"
+            className="mt-6 w-full py-3 bg-gray-100 text-gray-700 rounded-xl font-bold hover:bg-gray-200 transition-all border border-gray-200"
+          >
+            Use Demo Credentials
+          </button>
+        </div>
 
         <p className="text-center mt-8 text-sm text-gray-500">
           Already have an account?{' '}
