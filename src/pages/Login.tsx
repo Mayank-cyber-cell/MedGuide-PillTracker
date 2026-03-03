@@ -28,6 +28,24 @@ export default function Login() {
     }
   };
 
+  const handleDemoLogin = async () => {
+    setLoading(true);
+    setError('');
+    try {
+      const { token, user } = await api.auth.login({
+        email: 'test@example.com',
+        password: 'password123'
+      });
+      localStorage.setItem('token', token);
+      setUser(user);
+      navigate('/');
+    } catch (err: any) {
+      setError('Demo account not available. Please register a new account.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="max-w-md mx-auto mt-12">
       <div className="bg-white p-8 rounded-2xl shadow-xl border border-gray-100">
@@ -84,6 +102,25 @@ export default function Login() {
             {loading ? 'Signing in...' : 'Sign In'}
           </button>
         </form>
+
+        <div className="mt-6">
+          <div className="relative">
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-gray-200"></div>
+            </div>
+            <div className="relative flex justify-center text-sm">
+              <span className="px-4 bg-white text-gray-500 font-medium">OR</span>
+            </div>
+          </div>
+
+          <button
+            onClick={handleDemoLogin}
+            disabled={loading}
+            className="mt-6 w-full py-3 bg-gray-100 text-gray-700 rounded-xl font-bold hover:bg-gray-200 transition-all disabled:opacity-50 border border-gray-200"
+          >
+            Try Demo Account
+          </button>
+        </div>
 
         <p className="text-center mt-8 text-sm text-gray-500">
           Don't have an account?{' '}
