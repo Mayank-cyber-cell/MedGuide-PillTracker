@@ -1,4 +1,4 @@
-const API_URL = '/api';
+const API_URL = import.meta.env.VITE_API_URL || '/api';
 
 export const api = {
   async fetch(endpoint: string, options: RequestInit = {}) {
@@ -10,10 +10,28 @@ export const api = {
     };
 
     const response = await fetch(`${API_URL}${endpoint}`, { ...options, headers });
+
+    const contentType = response.headers.get('content-type');
+    const isJson = contentType && contentType.includes('application/json');
+
     if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.error || 'API request failed');
+      if (isJson) {
+        const error = await response.json();
+        throw new Error(error.error || 'API request failed');
+      } else {
+        const text = await response.text();
+        if (text.includes('<!DOCTYPE') || text.includes('<html')) {
+          throw new Error('Backend API not available. Please check your VITE_API_URL configuration.');
+        }
+        throw new Error(`API request failed: ${response.status} ${response.statusText}`);
+      }
     }
+
+    if (!isJson) {
+      const text = await response.text();
+      throw new Error('Expected JSON response but received HTML. Backend may not be deployed correctly.');
+    }
+
     return response.json();
   },
 
