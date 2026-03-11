@@ -1,6 +1,5 @@
 import { useState, FormEvent } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { api } from '../services/api';
 import { Pill, User, Mail, Lock } from 'lucide-react';
 
 export default function Register() {
@@ -11,18 +10,19 @@ export default function Register() {
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
-  const handleSubmit = async (e: FormEvent) => {
+  const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    setError('');
-    try {
-      await api.auth.register({ name, email, password });
-      navigate('/login');
-    } catch (err: any) {
-      setError(err.message);
-    } finally {
+    const savedUsers = JSON.parse(localStorage.getItem('users') || '[]');
+    if (savedUsers.find((u: any) => u.email === email)) {
+      setError('An account with this email already exists.');
       setLoading(false);
+      return;
     }
+    const newUser = { id: Date.now(), name, email, password };
+    localStorage.setItem('users', JSON.stringify([...savedUsers, newUser]));
+    navigate('/login');
+    setLoading(false);
   };
 
   const handleDemoRegister = () => {

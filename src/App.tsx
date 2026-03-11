@@ -1,6 +1,7 @@
 import { useState, useEffect, createContext, useContext, ReactNode } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, Link, useNavigate, useLocation } from 'react-router-dom';
 import { Settings as SettingsIcon, LayoutDashboard, Pill, LogOut, User as UserIcon, Bell, ChevronLeft, ChevronRight, Menu } from 'lucide-react';
+import Chatbot from './components/Chatbot';
 import { motion, AnimatePresence } from 'motion/react';
 import { User } from './types';
 import { api } from './services/api';
@@ -164,6 +165,8 @@ function Layout({ children }: { children: ReactNode }) {
           <p className="text-sm text-gray-500">© 2026 MedGuide. Your health, our priority.</p>
         </div>
       </footer>
+
+      <Chatbot />
     </div>
   );
 }
@@ -176,19 +179,15 @@ export default function App() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
   useEffect(() => {
-    const init = async () => {
-      const token = localStorage.getItem('token');
-      if (token) {
-        try {
-          const userData = await api.auth.getUser();
-          setUser(userData);
-        } catch (e) {
-          localStorage.removeItem('token');
-        }
+    const stored = localStorage.getItem('currentUser');
+    if (stored) {
+      try {
+        setUser(JSON.parse(stored));
+      } catch (e) {
+        localStorage.removeItem('currentUser');
       }
-      setLoading(false);
-    };
-    init();
+    }
+    setLoading(false);
   }, []);
 
   useEffect(() => {
@@ -229,7 +228,7 @@ export default function App() {
   }, [user]);
 
   const logout = () => {
-    localStorage.removeItem('token');
+    localStorage.removeItem('currentUser');
     setUser(null);
   };
 
