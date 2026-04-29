@@ -166,7 +166,7 @@ If you need to test immediately, you can run your backend on a simple Node hosti
 Frontend (Static)          Backend (Node.js)         Database
 ┌─────────────────┐       ┌──────────────────┐     ┌──────────────┐
 │   Vercel/       │       │   Railway/       │     │   Supabase   │
-│   Netlify       │──────▶│   Heroku         │────▶│   Postgres   │
+│   Netlify       │──────▶│   Heroku        │────▶│   Postgres   │
 │                 │       │   (server.ts)    │     │              │
 │   HTML/JS/CSS   │       │   /api/* routes  │     │   Tables     │
 └─────────────────┘       └──────────────────┘     └──────────────┘

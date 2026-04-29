@@ -1,6 +1,6 @@
 import { useState, useEffect, createContext, useContext, ReactNode } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, Link, useNavigate, useLocation } from 'react-router-dom';
-import { Settings as SettingsIcon, LayoutDashboard, Pill, LogOut, User as UserIcon, Bell, ChevronLeft, ChevronRight, Menu } from 'lucide-react';
+import { Settings as SettingsIcon, LayoutDashboard, Pill, LogOut, User as UserIcon, Bell, ChevronLeft, ChevronRight, Menu, Search } from 'lucide-react';
 import Chatbot from './components/Chatbot';
 import { motion, AnimatePresence } from 'motion/react';
 import { User } from './types';
@@ -10,6 +10,7 @@ import Register from './pages/Register';
 import Dashboard from './pages/Dashboard';
 import Medications from './pages/Medications';
 import Settings from './pages/Settings';
+import DrugLookup from './pages/DrugLookup';
 
 interface AppContextType {
   user: User | null;
@@ -39,6 +40,7 @@ function Layout({ children }: { children: ReactNode }) {
   const navItems = [
     { path: '/', icon: LayoutDashboard, label: 'Dashboard' },
     { path: '/medications', icon: Pill, label: 'Medications' },
+    { path: '/drug-lookup', icon: Search, label: 'Drug Info' },
     { path: '/settings', icon: SettingsIcon, label: 'Settings' },
   ];
 
@@ -130,14 +132,6 @@ function Layout({ children }: { children: ReactNode }) {
                     );
                   })}
                 </nav>
-
-                <div className="mt-auto p-4 bg-sky-50 rounded-2xl border border-sky-100">
-                  <p className="text-xs font-bold text-sky-600 uppercase tracking-wider mb-1">Health Status</p>
-                  <p className="text-sm text-sky-900 font-medium">All systems normal</p>
-                  <div className="mt-2 h-1.5 w-full bg-sky-200 rounded-full overflow-hidden">
-                    <div className="h-full w-3/4 bg-sky-500 rounded-full"></div>
-                  </div>
-                </div>
               </motion.aside>
             </>
           )}
@@ -250,6 +244,7 @@ export default function App() {
             <Route path="/register" element={!user ? <Register /> : <Navigate to="/" />} />
             <Route path="/" element={user ? <Dashboard /> : <Navigate to="/login" />} />
             <Route path="/medications" element={user ? <Medications /> : <Navigate to="/login" />} />
+            <Route path="/drug-lookup" element={user ? <DrugLookup /> : <Navigate to="/login" />} />
             <Route path="/settings" element={user ? <Settings /> : <Navigate to="/login" />} />
           </Routes>
         </Layout>

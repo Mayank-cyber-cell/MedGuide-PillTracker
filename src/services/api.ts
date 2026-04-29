@@ -36,20 +36,93 @@ export const api = {
   },
 
   auth: {
-    login: (credentials: any) => api.fetch('/login', { method: 'POST', body: JSON.stringify(credentials) }),
-    register: (data: any) => api.fetch('/register', { method: 'POST', body: JSON.stringify(data) }),
+    login: async (credentials: any) => {
+      try {
+        return await api.fetch('/login', { method: 'POST', body: JSON.stringify(credentials) });
+      } catch (e: any) {
+        if (!e.message.includes('Supabase') && !e.message.includes('API request failed')) throw e;
+        const savedUsers = JSON.parse(localStorage.getItem('users') || '[]');
+        const match = savedUsers.find((u: any) => u.email === credentials.email && u.password === credentials.password);
+        if (!match) throw new Error('Invalid email or password.');
+        const { password: _pw, ...user } = match;
+        return { token: 'mock-jwt-token', user };
+      }
+    },
+    register: async (data: any) => {
+      try {
+        return await api.fetch('/register', { method: 'POST', body: JSON.stringify(data) });
+      } catch (e: any) {
+        if (!e.message.includes('Supabase') && !e.message.includes('API request failed')) throw e;
+        const savedUsers = JSON.parse(localStorage.getItem('users') || '[]');
+        if (savedUsers.find((u: any) => u.email === data.email)) throw new Error('An account with this email already exists.');
+        const newUser = { id: Date.now(), ...data };
+        localStorage.setItem('users', JSON.stringify([...savedUsers, newUser]));
+        return { id: newUser.id };
+      }
+    },
     getUser: () => api.fetch('/user'),
   },
 
   medicines: {
-    list: () => api.fetch('/medicines'),
-    create: (data: any) => api.fetch('/medicines', { method: 'POST', body: JSON.stringify(data) }),
-    delete: (id: number) => api.fetch(`/medicines/${id}`, { method: 'DELETE' }),
+    list: async () => {
+      try {
+        return await api.fetch('/medicines');
+      } catch (e: any) {
+        if (!e.message.includes('Supabase') && !e.message.includes('API request failed') && !e.message.includes('401')) throw e;
+        return JSON.parse(localStorage.getItem('mock_medicines') || '[]');
+      }
+    },
+    create: async (data: any) => {
+      try {
+        return await api.fetch('/medicines', { method: 'POST', body: JSON.stringify(data) });
+      } catch (e: any) {
+        if (!e.message.includes('Supabase') && !e.message.includes('API request failed') && !e.message.includes('401')) throw e;
+        const meds = JSON.parse(localStorage.getItem('mock_medicines') || '[]');
+        const newMed = { ...data, id: Date.now() };
+        localStorage.setItem('mock_medicines', JSON.stringify([newMed, ...meds]));
+        return { id: newMed.id };
+      }
+    },
+    delete: async (id: number) => {
+      try {
+        return await api.fetch(`/medicines/${id}`, { method: 'DELETE' });
+      } catch (e: any) {
+        if (!e.message.includes('Supabase') && !e.message.includes('API request failed') && !e.message.includes('401')) throw e;
+        const meds = JSON.parse(localStorage.getItem('mock_medicines') || '[]');
+        localStorage.setItem('mock_medicines', JSON.stringify(meds.filter((m: any) => m.id !== id)));
+        return { success: true };
+      }
+    },
   },
 
   adherence: {
-    list: () => api.fetch('/adherence'),
-    record: (data: { medication_id: number, status: string }) => api.fetch('/adherence', { method: 'POST', body: JSON.stringify(data) }),
+    list: async () => {
+      try {
+        return await api.fetch('/adherence');
+      } catch (e: any) {
+        if (!e.message.includes('Supabase') && !e.message.includes('API request failed') && !e.message.includes('401')) throw e;
+        return JSON.parse(localStorage.getItem('mock_adherence') || '[]');
+      }
+    },
+    record: async (data: { medication_id: number, status: string }) => {
+      try {
+        return await api.fetch('/adherence', { method: 'POST', body: JSON.stringify(data) });
+      } catch (e: any) {
+        if (!e.message.includes('Supabase') && !e.message.includes('API request failed') && !e.message.includes('401')) throw e;
+        const adherenceList = JSON.parse(localStorage.getItem('mock_adherence') || '[]');
+        const meds = JSON.parse(localStorage.getItem('mock_medicines') || '[]');
+        const med = meds.find((m: any) => m.id === data.medication_id) || { name: 'Unknown Medication' };
+        
+        const record = { 
+          id: Date.now(), 
+          ...data,
+          medicine_name: med.name,
+          timestamp: new Date().toISOString()
+        };
+        localStorage.setItem('mock_adherence', JSON.stringify([record, ...adherenceList]));
+        return { success: true };
+      }
+    },
   },
 
   emergencyContact: {

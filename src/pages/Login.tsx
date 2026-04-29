@@ -2,6 +2,7 @@ import { useState, FormEvent } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useApp } from '../App';
 import { Pill, Lock, Mail } from 'lucide-react';
+import { api } from '../services/api';
 
 export default function Login() {
   const [email, setEmail] = useState('');
@@ -11,21 +12,21 @@ export default function Login() {
   const navigate = useNavigate();
   const { setUser } = useApp();
 
-  const handleSubmit = (e: FormEvent) => {
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    const savedUsers = JSON.parse(localStorage.getItem('users') || '[]');
-    const match = savedUsers.find((u: any) => u.email === email && u.password === password);
-    if (!match) {
-      setError('Invalid email or password.');
+    
+    try {
+      const { token, user } = await api.auth.login({ email, password });
+      localStorage.setItem('token', token);
+      localStorage.setItem('currentUser', JSON.stringify(user));
+      setUser(user);
+      navigate('/');
+    } catch (err: any) {
+      setError(err.message || 'Invalid email or password.');
+    } finally {
       setLoading(false);
-      return;
     }
-    const { password: _pw, ...user } = match;
-    localStorage.setItem('currentUser', JSON.stringify(user));
-    setUser(user);
-    navigate('/');
-    setLoading(false);
   };
 
   const handleDemoLogin = async () => {

@@ -58,8 +58,8 @@ export default function Medications() {
         start_date: new Date().toISOString().split('T')[0],
       });
       fetchMeds();
-    } catch (e) {
-      alert('Failed to add medication');
+    } catch (e: any) {
+      alert('Failed to add medication: ' + (e.message || 'Unknown error'));
     }
   };
 
@@ -68,8 +68,8 @@ export default function Medications() {
     try {
       await api.medicines.delete(id);
       fetchMeds();
-    } catch (e) {
-      alert('Failed to delete');
+    } catch (e: any) {
+      alert('Failed to delete: ' + (e.message || 'Unknown error'));
     }
   };
 

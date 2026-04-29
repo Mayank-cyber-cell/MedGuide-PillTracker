@@ -5,18 +5,58 @@ import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import path from "path";
 import dotenv from "dotenv";
+import net from "net";
 
 dotenv.config();
 
-const supabaseUrl = process.env.VITE_SUPABASE_URL!;
-const supabaseKey = process.env.VITE_SUPABASE_ANON_KEY!;
-const supabase = createClient(supabaseUrl, supabaseKey);
+const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
+const supabaseKey = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY;
+const isSupabaseConfigured = Boolean(supabaseUrl && supabaseKey);
+
+const supabase: any = isSupabaseConfigured ? createClient(supabaseUrl!, supabaseKey!) : null;
 
 const JWT_SECRET = process.env.JWT_SECRET || "medguide-secret-key-123";
+
+function findAvailablePort(startPort: number): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const server = net.createServer();
+    server.unref();
+
+    server.once("error", (error: any) => {
+      if (error?.code === "EADDRINUSE") {
+        resolve(findAvailablePort(startPort + 1));
+        return;
+      }
+
+      reject(error);
+    });
+
+    server.listen(startPort, "0.0.0.0", () => {
+      const address = server.address();
+      const port = typeof address === "object" && address ? address.port : startPort;
+      server.close(() => resolve(port));
+    });
+  });
+}
 
 async function startServer() {
   const app = express();
   app.use(express.json());
+
+  app.use('/api', (req, res, next) => {
+    // Public endpoints that do not require database access
+    if (req.path === '/health' || req.path.startsWith('/drug-safety') || req.path.startsWith('/debug/openfda')) {
+      return next();
+    }
+
+    if (!supabase) {
+      return res.status(503).json({
+        error: 'Database is not configured. Add Supabase environment variables and restart the server.'
+      });
+    }
+
+    next();
+  });
 
   // CORS middleware for production
   app.use((req, res, next) => {
@@ -45,8 +85,37 @@ async function startServer() {
       status: 'healthy',
       timestamp: new Date().toISOString(),
       environment: process.env.NODE_ENV || 'development',
-      database: supabaseUrl ? 'connected' : 'not configured'
+      database: isSupabaseConfigured ? 'connected' : 'not configured',
+      openfdaApiKey: process.env.OPENFDA_API_KEY ? 'configured' : 'NOT configured'
     });
+  });
+
+  // Debug endpoint for OpenFDA connectivity
+  app.get('/api/debug/openfda', async (req, res) => {
+    const apiKey = process.env.OPENFDA_API_KEY;
+    if (!apiKey) {
+      return res.status(400).json({ error: 'OPENFDA_API_KEY not configured in .env' });
+    }
+
+    try {
+      // Test simple query
+      const testUrl = `https://api.fda.gov/drug/event.json?api_key=${apiKey}&limit=1`;
+      const response = await fetch(testUrl);
+      const data = await response.json();
+      
+      res.json({
+        status: response.ok ? 'success' : 'failed',
+        statusCode: response.status,
+        hasResults: data.results && data.results.length > 0,
+        totalAvailable: data.meta?.results?.total || 0,
+        apiKeyPresent: !!apiKey
+      });
+    } catch (error: any) {
+      res.status(500).json({ 
+        error: 'Failed to connect to OpenFDA API',
+        message: error.message 
+      });
+    }
   });
 
   // Middleware to verify JWT
@@ -152,27 +221,64 @@ async function startServer() {
     }
   });
 
-  // OpenFDA Proxy
-  app.get("/api/drug-safety/:name", authenticateToken, async (req, res) => {
+  // OpenFDA Proxy - Public endpoint for drug safety info
+  app.get("/api/drug-safety/:name", async (req, res) => {
     const drugName = req.params.name;
     const apiKey = process.env.OPENFDA_API_KEY;
-    const apiKeyParam = apiKey ? `&api_key=${apiKey}` : "";
+
+    if (!apiKey) {
+      console.warn("[OpenFDA] API Key not configured");
+      return res.status(500).json({ 
+        error: "OpenFDA API key not configured. Set OPENFDA_API_KEY in .env file."
+      });
+    }
 
     try {
-      const response = await fetch(`https://api.fda.gov/drug/event.json?search=patient.drug.medicinalproduct:"${drugName}"&limit=1${apiKeyParam}`);
-      if (!response.ok) return res.status(404).json({ error: "Not found" });
-      const data = await response.json();
+      // Simplified search without complex query syntax
+      // Just search for the drug name in all fields
+      const searchUrl = `https://api.fda.gov/drug/event.json?search=${encodeURIComponent(drugName)}&limit=5&api_key=${apiKey}`;
       
-      const seriousResponse = await fetch(`https://api.fda.gov/drug/event.json?search=patient.drug.medicinalproduct:"${drugName}"+AND+serious:1&limit=1${apiKeyParam}`);
-      let seriousCases = 0;
-      if (seriousResponse.ok) {
-        const seriousData = await seriousResponse.json();
-        seriousCases = seriousData.meta.results.total;
+      console.log(`[OpenFDA] Searching for: ${drugName}`);
+      const response = await fetch(searchUrl);
+
+      if (!response.ok) {
+        console.error(`[OpenFDA] API returned status: ${response.status}`);
+        return res.status(404).json({ 
+          error: `Drug "${drugName}" not found in OpenFDA database. Try common drug names like 'Aspirin', 'Ibuprofen', or 'Acetaminophen'.`,
+          results: [] 
+        });
       }
 
+      const data = await response.json();
+
+      if (!data.results || data.results.length === 0) {
+        console.warn(`[OpenFDA] No results for: ${drugName}`);
+        return res.status(404).json({ 
+          error: `No adverse events found for "${drugName}".`,
+          results: [] 
+        });
+      }
+
+      // Count serious cases
+      let seriousCases = 0;
+      try {
+        const seriousUrl = `https://api.fda.gov/drug/event.json?search=${encodeURIComponent(drugName)}+AND+serious:1&limit=1&api_key=${apiKey}`;
+        const seriousResponse = await fetch(seriousUrl);
+        if (seriousResponse.ok) {
+          const seriousData = await seriousResponse.json();
+          seriousCases = seriousData.meta?.results?.total || 0;
+        }
+      } catch (e) {
+        console.error("[OpenFDA] Error fetching serious cases:", e);
+      }
+
+      console.log(`[OpenFDA] Found ${data.meta?.results?.total || 0} reports with ${seriousCases} serious cases`);
       res.json({ ...data, seriousCases });
-    } catch (error) {
-      res.status(500).json({ error: "Failed to fetch from OpenFDA" });
+    } catch (error: any) {
+      console.error("[OpenFDA] Request failed:", error.message);
+      res.status(500).json({ 
+        error: `API error: ${error.message}` 
+      });
     }
   });
 
@@ -351,22 +457,42 @@ async function startServer() {
 
   // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {
+    const requestedPort = Number(process.env.PORT || 3000);
+    const requestedHmrPort = Number(process.env.VITE_HMR_PORT || 24678);
+    const appPort = await findAvailablePort(requestedPort);
+    const hmrPort = await findAvailablePort(requestedHmrPort);
+
     const vite = await createViteServer({
-      server: { middlewareMode: true },
+      server: {
+        middlewareMode: true,
+        hmr: {
+          port: hmrPort,
+          clientPort: hmrPort,
+        },
+      },
       appType: "spa",
     });
     app.use(vite.middlewares);
+
+    app.listen(appPort, "0.0.0.0", () => {
+      console.log(`Server running on http://localhost:${appPort}`);
+      if (appPort !== requestedPort) {
+        console.log(`Requested port ${requestedPort} was busy, using ${appPort} instead.`);
+      }
+      if (hmrPort !== requestedHmrPort) {
+        console.log(`Requested HMR port ${requestedHmrPort} was busy, using ${hmrPort} instead.`);
+      }
+    });
   } else {
     app.use(express.static(path.join(process.cwd(), "dist")));
     app.get("*", (req, res) => {
       res.sendFile(path.join(process.cwd(), "dist", "index.html"));
     });
+    const PORT = Number(process.env.PORT || 3000);
+    app.listen(PORT, "0.0.0.0", () => {
+      console.log(`Server running on http://localhost:${PORT}`);
+    });
   }
-
-  const PORT = 3000;
-  app.listen(PORT, "0.0.0.0", () => {
-    console.log(`Server running on http://localhost:${PORT}`);
-  });
 }
 
 startServer();
