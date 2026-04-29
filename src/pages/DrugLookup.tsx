@@ -1,6 +1,7 @@
 import { useState, FormEvent } from 'react';
 import { Search, AlertCircle, TrendingUp, AlertTriangle, Check, Skull, Clock, Zap } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { api } from '../services/api';
 
 interface DrugData {
   name: string;
@@ -90,16 +91,7 @@ export default function DrugLookup() {
     setSearched(true);
 
     try {
-      const response = await fetch(`/api/drug-safety/${encodeURIComponent(searchQuery)}`);
-      
-      if (!response.ok) {
-        const errorData = await response.json();
-        setError(errorData.error || `No data found for "${searchQuery}". Please check the spelling or try a different drug name.`);
-        setLoading(false);
-        return;
-      }
-
-      const data = await response.json();
+      const data = await api.fetch(`/drug-safety/${encodeURIComponent(searchQuery)}`);
 
       if (!data.results || data.results.length === 0) {
         setError(`No adverse event data found for "${searchQuery}" in the OpenFDA database.`);
