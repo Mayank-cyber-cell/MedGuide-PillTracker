@@ -12,27 +12,35 @@ export const api = {
     const response = await fetch(`${API_URL}${endpoint}`, { ...options, headers });
 
     const contentType = response.headers.get('content-type');
-    const isJson = contentType && contentType.includes('application/json');
+    const rawBody = await response.text();
+    const trimmedBody = rawBody.trim();
+    const looksLikeJson = trimmedBody.startsWith('{') || trimmedBody.startsWith('[');
+
+    let parsedBody: any = null;
+    if (looksLikeJson || (contentType && contentType.includes('application/json'))) {
+      try {
+        parsedBody = trimmedBody ? JSON.parse(rawBody) : null;
+      } catch {
+        throw new Error(`API returned invalid JSON for ${endpoint}. Check your deployed backend response.`);
+      }
+    }
 
     if (!response.ok) {
-      if (isJson) {
-        const error = await response.json();
-        throw new Error(error.error || 'API request failed');
+      if (parsedBody) {
+        throw new Error(parsedBody.error || 'API request failed');
       } else {
-        const text = await response.text();
-        if (text.includes('<!DOCTYPE') || text.includes('<html')) {
+        if (trimmedBody.includes('<!DOCTYPE') || trimmedBody.includes('<html')) {
           throw new Error('Backend API not available. Please check your VITE_API_URL configuration.');
         }
         throw new Error(`API request failed: ${response.status} ${response.statusText}`);
       }
     }
 
-    if (!isJson) {
-      const text = await response.text();
+    if (!parsedBody) {
       throw new Error('Expected JSON response but received HTML. Backend may not be deployed correctly.');
     }
 
-    return response.json();
+    return parsedBody;
   },
 
   auth: {
