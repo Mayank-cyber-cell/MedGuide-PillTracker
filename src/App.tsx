@@ -1,16 +1,28 @@
-import { useState, useEffect, createContext, useContext, ReactNode } from 'react';
+import { useState, useEffect, createContext, useContext, ReactNode, lazy, Suspense } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, Link, useNavigate, useLocation } from 'react-router-dom';
 import { Settings as SettingsIcon, LayoutDashboard, Pill, LogOut, User as UserIcon, Bell, ChevronLeft, ChevronRight, Menu, Search } from 'lucide-react';
-import Chatbot from './components/Chatbot';
 import { motion, AnimatePresence } from 'motion/react';
 import { User } from './types';
 import { api } from './services/api';
-import Login from './pages/Login';
-import Register from './pages/Register';
-import Dashboard from './pages/Dashboard';
-import Medications from './pages/Medications';
-import Settings from './pages/Settings';
-import DrugLookup from './pages/DrugLookup';
+
+const Chatbot = lazy(() => import('./components/Chatbot'));
+const Login = lazy(() => import('./pages/Login'));
+const Register = lazy(() => import('./pages/Register'));
+const Dashboard = lazy(() => import('./pages/Dashboard'));
+const Medications = lazy(() => import('./pages/Medications'));
+const Settings = lazy(() => import('./pages/Settings'));
+const DrugLookup = lazy(() => import('./pages/DrugLookup'));
+
+function RouteFallback() {
+  return (
+    <div className="flex min-h-[50vh] items-center justify-center">
+      <div className="flex flex-col items-center gap-3">
+        <div className="h-10 w-10 animate-spin rounded-full border-4 border-sky-500 border-t-transparent" />
+        <p className="text-sm font-medium text-sky-600">Loading...</p>
+      </div>
+    </div>
+  );
+}
 
 interface AppContextType {
   user: User | null;
@@ -147,7 +159,9 @@ function Layout({ children }: { children: ReactNode }) {
                 exit={{ opacity: 0, y: -10 }}
                 transition={{ duration: 0.2 }}
               >
-                {children}
+                <Suspense fallback={<RouteFallback />}>
+                  {children}
+                </Suspense>
               </motion.div>
             </AnimatePresence>
           </div>
@@ -160,7 +174,9 @@ function Layout({ children }: { children: ReactNode }) {
         </div>
       </footer>
 
-      <Chatbot />
+      <Suspense fallback={null}>
+        <Chatbot />
+      </Suspense>
     </div>
   );
 }
@@ -239,14 +255,16 @@ export default function App() {
     <AppContext.Provider value={{ user, setUser, elderlyMode, setElderlyMode, highContrast, setHighContrast, sidebarOpen, setSidebarOpen, logout }}>
       <Router>
         <Layout>
-          <Routes>
-            <Route path="/login" element={!user ? <Login /> : <Navigate to="/" />} />
-            <Route path="/register" element={!user ? <Register /> : <Navigate to="/" />} />
-            <Route path="/" element={user ? <Dashboard /> : <Navigate to="/login" />} />
-            <Route path="/medications" element={user ? <Medications /> : <Navigate to="/login" />} />
-            <Route path="/drug-lookup" element={user ? <DrugLookup /> : <Navigate to="/login" />} />
-            <Route path="/settings" element={user ? <Settings /> : <Navigate to="/login" />} />
-          </Routes>
+          <Suspense fallback={<RouteFallback />}>
+            <Routes>
+              <Route path="/login" element={!user ? <Login /> : <Navigate to="/" />} />
+              <Route path="/register" element={!user ? <Register /> : <Navigate to="/" />} />
+              <Route path="/" element={user ? <Dashboard /> : <Navigate to="/login" />} />
+              <Route path="/medications" element={user ? <Medications /> : <Navigate to="/login" />} />
+              <Route path="/drug-lookup" element={user ? <DrugLookup /> : <Navigate to="/login" />} />
+              <Route path="/settings" element={user ? <Settings /> : <Navigate to="/login" />} />
+            </Routes>
+          </Suspense>
         </Layout>
       </Router>
     </AppContext.Provider>
