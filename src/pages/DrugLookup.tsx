@@ -78,7 +78,31 @@ export default function DrugLookup() {
   const [usageInfo, setUsageInfo] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
   const [searched, setSearched] = useState(false);
+
+  const buildFallbackDrugData = (name: string): DrugData | null => {
+    const lowerCaseName = name.toLowerCase();
+    const info = Object.entries(drugUsageDatabase).find(([key]) =>
+      lowerCaseName.includes(key) || key.includes(lowerCaseName)
+    );
+
+    if (!info) return null;
+
+    const [, usage] = info;
+    return {
+      name: name.charAt(0).toUpperCase() + name.slice(1).toLowerCase(),
+      totalReports: 0,
+      seriousCases: 0,
+      sideEffects: usage.uses.slice(0, 3),
+      riskLevel: 'Low',
+      reactions: usage.uses,
+      overdoseCases: 0,
+      deathCases: 0,
+      hospitalizationCases: 0,
+      commonReportAge: 'Not available offline'
+    };
+  };
 
   const handleSearch = async (e: FormEvent) => {
     e.preventDefault();
@@ -86,6 +110,7 @@ export default function DrugLookup() {
 
     setLoading(true);
     setError('');
+    setNotice('');
     setDrugData(null);
     setUsageInfo(null);
     setSearched(true);
@@ -94,6 +119,20 @@ export default function DrugLookup() {
       const data = await api.fetch(`/drug-safety/${encodeURIComponent(searchQuery)}`);
 
       if (!data.results || data.results.length === 0) {
+        const fallbackDrugData = buildFallbackDrugData(searchQuery);
+        if (fallbackDrugData) {
+          const lowerCaseName = searchQuery.toLowerCase();
+          const info = Object.entries(drugUsageDatabase).find(([key]) =>
+            lowerCaseName.includes(key) || key.includes(lowerCaseName)
+          );
+
+          setDrugData(fallbackDrugData);
+          setUsageInfo(info?.[1] || null);
+          setNotice('Live OpenFDA data is unavailable right now, so this view is showing the local safety guide instead.');
+          setLoading(false);
+          return;
+        }
+
         setError(`No adverse event data found for "${searchQuery}" in the OpenFDA database.`);
         setLoading(false);
         return;
@@ -160,7 +199,19 @@ export default function DrugLookup() {
         setUsageInfo(info[1]);
       }
     } catch (err: any) {
-      setError(`Error fetching data: ${err.message || 'Please check your API configuration and ensure OPENFDA_API_KEY is set.'}`);
+      const fallbackDrugData = buildFallbackDrugData(searchQuery);
+      if (fallbackDrugData) {
+        const lowerCaseName = searchQuery.toLowerCase();
+        const info = Object.entries(drugUsageDatabase).find(([key]) =>
+          lowerCaseName.includes(key) || key.includes(lowerCaseName)
+        );
+
+        setDrugData(fallbackDrugData);
+        setUsageInfo(info?.[1] || null);
+        setNotice('Live OpenFDA data is unavailable right now, so this view is showing the local safety guide instead.');
+      } else {
+        setError(`Error fetching data: ${err.message || 'Please check your API configuration and ensure OPENFDA_API_KEY is set.'}`);
+      }
     } finally {
       setLoading(false);
     }
@@ -213,6 +264,21 @@ export default function DrugLookup() {
       </motion.form>
 
       <AnimatePresence mode="wait">
+        {notice && (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            className="bg-blue-50 border border-blue-200 rounded-2xl p-4 flex gap-3"
+          >
+            <AlertCircle className="text-blue-600 flex-shrink-0" size={24} />
+            <div>
+              <h3 className="font-bold text-blue-900 mb-1">Using local safety guide</h3>
+              <p className="text-blue-700 text-sm">{notice}</p>
+            </div>
+          </motion.div>
+        )}
+
         {/* Error Message */}
         {error && (
           <motion.div
