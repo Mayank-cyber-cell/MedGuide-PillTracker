@@ -11,7 +11,7 @@
 
 **🚀 An intelligent, accessible medication tracking solution**
 
-[🌐 Live Demo](#) • [📖 Program Flow](#-animated-program-flow) • [🐛 Report Bug](#) • [✨ Request Feature](#)
+[🌐 Live Demo](https://med-guide-pill-track.vercel.app/) 
 
 </div>
 
