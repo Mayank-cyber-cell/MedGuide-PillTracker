@@ -16,7 +16,7 @@ const JWT_SECRET = process.env.JWT_SECRET || 'medguide-secret-key-123';
 const app = express();
 app.use(express.json());
 
-app.use('/api', (req, res, next) => {
+app.use((req, res, next) => {
   if (req.path === '/health' || req.path.startsWith('/drug-safety') || req.path.startsWith('/debug/openfda')) {
     return next();
   }
@@ -48,7 +48,7 @@ app.use((req, res, next) => {
   next();
 });
 
-app.get('/api/health', (req, res) => {
+app.get('/health', (req, res) => {
   res.json({
     status: 'healthy',
     timestamp: new Date().toISOString(),
@@ -58,7 +58,7 @@ app.get('/api/health', (req, res) => {
   });
 });
 
-app.get('/api/debug/openfda', async (req, res) => {
+app.get('/debug/openfda', async (req, res) => {
   const apiKey = process.env.OPENFDA_API_KEY;
   if (!apiKey) {
     return res.status(400).json({ error: 'OPENFDA_API_KEY not configured' });
@@ -97,7 +97,7 @@ const authenticateToken = (req: any, res: any, next: any) => {
   });
 };
 
-app.post('/api/register', async (req, res) => {
+app.post('/register', async (req, res) => {
   const { name, email, password } = req.body;
   try {
     const { data: existingUser } = await supabase
@@ -124,7 +124,7 @@ app.post('/api/register', async (req, res) => {
   }
 });
 
-app.post('/api/login', async (req, res) => {
+app.post('/login', async (req, res) => {
   const { email, password } = req.body;
 
   try {
@@ -145,7 +145,7 @@ app.post('/api/login', async (req, res) => {
   }
 });
 
-app.get('/api/user', authenticateToken, async (req: any, res) => {
+app.get('/user', authenticateToken, async (req: any, res) => {
   try {
     const { data: user, error } = await supabase
       .from('users')
@@ -160,7 +160,7 @@ app.get('/api/user', authenticateToken, async (req: any, res) => {
   }
 });
 
-app.post('/api/emergency-contact', authenticateToken, async (req: any, res) => {
+app.post('/emergency-contact', authenticateToken, async (req: any, res) => {
   const { name, email, phone } = req.body;
   try {
     const { error } = await supabase
@@ -179,7 +179,7 @@ app.post('/api/emergency-contact', authenticateToken, async (req: any, res) => {
   }
 });
 
-app.get('/api/drug-safety/:name', async (req, res) => {
+app.get('/drug-safety/:name', async (req, res) => {
   const drugName = req.params.name;
   const apiKey = process.env.OPENFDA_API_KEY;
 
@@ -226,7 +226,7 @@ app.get('/api/drug-safety/:name', async (req, res) => {
   }
 });
 
-app.get('/api/medicines', authenticateToken, async (req: any, res) => {
+app.get('/medicines', authenticateToken, async (req: any, res) => {
   try {
     const { data: medicines, error } = await supabase
       .from('medications')
@@ -241,7 +241,7 @@ app.get('/api/medicines', authenticateToken, async (req: any, res) => {
   }
 });
 
-app.post('/api/medicines', authenticateToken, async (req: any, res) => {
+app.post('/medicines', authenticateToken, async (req: any, res) => {
   const { name, dosage, frequency, reminder_time, days_of_week, start_date, end_date, risk_level, side_effects, total_reports, serious_cases } = req.body;
   try {
     const { data, error } = await supabase
@@ -270,7 +270,7 @@ app.post('/api/medicines', authenticateToken, async (req: any, res) => {
   }
 });
 
-app.delete('/api/medicines/:id', authenticateToken, async (req: any, res) => {
+app.delete('/medicines/:id', authenticateToken, async (req: any, res) => {
   try {
     const { error } = await supabase
       .from('medications')
@@ -285,7 +285,7 @@ app.delete('/api/medicines/:id', authenticateToken, async (req: any, res) => {
   }
 });
 
-app.get('/api/adherence', authenticateToken, async (req: any, res) => {
+app.get('/adherence', authenticateToken, async (req: any, res) => {
   try {
     const { data: adherence, error } = await supabase
       .from('adherence')
@@ -309,7 +309,7 @@ app.get('/api/adherence', authenticateToken, async (req: any, res) => {
   }
 });
 
-app.post('/api/adherence', authenticateToken, async (req: any, res) => {
+app.post('/adherence', authenticateToken, async (req: any, res) => {
   const { medication_id, status } = req.body;
 
   try {
