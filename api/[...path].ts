@@ -184,8 +184,10 @@ app.get('/drug-safety/:name', async (req, res) => {
   const apiKey = process.env.OPENFDA_API_KEY;
 
   if (!apiKey) {
-    return res.status(500).json({
-      error: 'OpenFDA API key not configured. Set OPENFDA_API_KEY in Vercel environment variables.'
+    console.error('[OpenFDA] OPENFDA_API_KEY is not configured in environment variables');
+    return res.status(503).json({
+      error: 'Drug safety database is currently unavailable. Please ensure OPENFDA_API_KEY is configured in Vercel environment variables.',
+      results: []
     });
   }
 
@@ -194,6 +196,7 @@ app.get('/drug-safety/:name', async (req, res) => {
     const response = await fetch(searchUrl);
 
     if (!response.ok) {
+      console.error(`[OpenFDA] API returned ${response.status} for drug: ${drugName}`);
       return res.status(404).json({
         error: `Drug "${drugName}" not found in OpenFDA database. Try common drug names like 'Aspirin', 'Ibuprofen', or 'Acetaminophen'.`,
         results: []
@@ -202,6 +205,7 @@ app.get('/drug-safety/:name', async (req, res) => {
 
     const data = await response.json();
     if (!data.results || data.results.length === 0) {
+      console.warn(`[OpenFDA] No results found for drug: ${drugName}`);
       return res.status(404).json({
         error: `No adverse events found for "${drugName}".`,
         results: []
@@ -220,9 +224,14 @@ app.get('/drug-safety/:name', async (req, res) => {
       console.error('[OpenFDA] Error fetching serious cases:', e);
     }
 
+    console.log(`[OpenFDA] Successfully fetched data for ${drugName}: ${data.results.length} results`);
     res.json({ ...data, seriousCases });
   } catch (error: any) {
-    res.status(500).json({ error: `API error: ${error.message}` });
+    console.error('[OpenFDA] Fetch error:', error.message);
+    res.status(500).json({ 
+      error: `API error: ${error.message}`,
+      results: []
+    });
   }
 });
 

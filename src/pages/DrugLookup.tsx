@@ -128,7 +128,7 @@ export default function DrugLookup() {
 
           setDrugData(fallbackDrugData);
           setUsageInfo(info?.[1] || null);
-          setNotice('Live OpenFDA data is unavailable right now, so this view is showing the local safety guide instead.');
+          setNotice('⚠️ Live drug data temporarily unavailable. Displaying general safety information.');
           setLoading(false);
           return;
         }
@@ -208,9 +208,9 @@ export default function DrugLookup() {
 
         setDrugData(fallbackDrugData);
         setUsageInfo(info?.[1] || null);
-        setNotice('Live OpenFDA data is unavailable right now, so this view is showing the local safety guide instead.');
+        setNotice('⚠️ Live drug data temporarily unavailable. Displaying general safety information.');
       } else {
-        setError(`Error fetching data: ${err.message || 'Please check your API configuration and ensure OPENFDA_API_KEY is set.'}`);
+        setError(`Error fetching data: ${err.message || 'Please try a common drug name like Aspirin, Ibuprofen, or Acetaminophen.'}`);
       }
     } finally {
       setLoading(false);
@@ -273,11 +273,11 @@ export default function DrugLookup() {
           >
             <AlertCircle className="text-blue-600 flex-shrink-0" size={24} />
             <div>
-              <h3 className="font-bold text-blue-900 mb-1">Using local safety guide</h3>
+              <h3 className="font-bold text-blue-900 mb-1">General Safety Information</h3>
               <p className="text-blue-700 text-sm">{notice}</p>
             </div>
           </motion.div>
-        )}
+        )}}
 
         {/* Error Message */}
         {error && (
