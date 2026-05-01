@@ -277,7 +277,7 @@ export default function DrugLookup() {
               <p className="text-blue-700 text-sm">{notice}</p>
             </div>
           </motion.div>
-        )}}
+        )}
 
         {/* Error Message */}
         {error && (
