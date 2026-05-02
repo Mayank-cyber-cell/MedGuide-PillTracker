@@ -1,16 +1,22 @@
 import express from 'express';
-import { createClient } from '@supabase/supabase-js';
-import bcrypt from 'bcryptjs';
-import jwt from 'jsonwebtoken';
 import dotenv from 'dotenv';
 import serverless from 'serverless-http';
 
 dotenv.config();
 
-const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
-const supabaseKey = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY;
-const isSupabaseConfigured = Boolean(supabaseUrl && supabaseKey);
-const supabase: any = isSupabaseConfigured ? createClient(supabaseUrl!, supabaseKey!) : null;
+let supabase: any = null;
+let isSupabaseConfigured = false;
+const getSupabase = () => {
+  if (supabase) return supabase;
+  const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
+  const supabaseKey = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY;
+  isSupabaseConfigured = Boolean(supabaseUrl && supabaseKey);
+  if (!isSupabaseConfigured) return null;
+  const { createClient } = require('@supabase/supabase-js');
+  supabase = createClient(supabaseUrl!, supabaseKey!);
+  return supabase;
+};
+
 const JWT_SECRET = process.env.JWT_SECRET || 'medguide-secret-key-123';
 
 const app = express();
@@ -100,7 +106,10 @@ const authenticateToken = (req: any, res: any, next: any) => {
 app.post('/register', async (req, res) => {
   const { name, email, password } = req.body;
   try {
-    const { data: existingUser } = await supabase
+    const sb = getSupabase();
+    if (!sb) return res.status(503).json({ error: 'Database is not configured. Add Supabase environment variables and redeploy.' });
+
+    const { data: existingUser } = await sb
       .from('users')
       .select('id')
       .eq('email', email)
@@ -110,8 +119,9 @@ app.post('/register', async (req, res) => {
       return res.status(400).json({ error: 'Email already exists' });
     }
 
+    const bcrypt = require('bcryptjs');
     const hashedPassword = await bcrypt.hash(password, 10);
-    const { data, error } = await supabase
+    const { data, error } = await sb
       .from('users')
       .insert([{ name, email, password: hashedPassword }])
       .select()
@@ -128,11 +138,17 @@ app.post('/login', async (req, res) => {
   const { email, password } = req.body;
 
   try {
-    const { data: user, error } = await supabase
+    const sb = getSupabase();
+    if (!sb) return res.status(503).json({ error: 'Database is not configured. Add Supabase environment variables and redeploy.' });
+
+    const { data: user, error } = await sb
       .from('users')
       .select('*')
       .eq('email', email)
       .maybeSingle();
+
+    const bcrypt = require('bcryptjs');
+    const jwt = require('jsonwebtoken');
 
     if (error || !user || !(await bcrypt.compare(password, user.password))) {
       return res.status(401).json({ error: 'Invalid credentials' });
@@ -147,7 +163,10 @@ app.post('/login', async (req, res) => {
 
 app.get('/user', authenticateToken, async (req: any, res) => {
   try {
-    const { data: user, error } = await supabase
+    const sb = getSupabase();
+    if (!sb) return res.status(503).json({ error: 'Database is not configured. Add Supabase environment variables and redeploy.' });
+
+    const { data: user, error } = await sb
       .from('users')
       .select('id, name, email, emergency_contact_name, emergency_contact_email, emergency_contact_phone')
       .eq('id', req.user.id)
@@ -163,7 +182,10 @@ app.get('/user', authenticateToken, async (req: any, res) => {
 app.post('/emergency-contact', authenticateToken, async (req: any, res) => {
   const { name, email, phone } = req.body;
   try {
-    const { error } = await supabase
+    const sb = getSupabase();
+    if (!sb) return res.status(503).json({ error: 'Database is not configured. Add Supabase environment variables and redeploy.' });
+
+    const { error } = await sb
       .from('users')
       .update({
         emergency_contact_name: name,
@@ -192,7 +214,8 @@ app.get('/drug-safety/:name', async (req, res) => {
   }
 
   try {
-    const searchUrl = `https://api.fda.gov/drug/event.json?search=${encodeURIComponent(drugName)}&limit=5&api_key=${apiKey}`;
+    // keep the payload small in serverless
+    const searchUrl = `https://api.fda.gov/drug/event.json?search=${encodeURIComponent(drugName)}&limit=1&api_key=${apiKey}`;
     const response = await fetch(searchUrl);
 
     if (!response.ok) {
@@ -237,7 +260,10 @@ app.get('/drug-safety/:name', async (req, res) => {
 
 app.get('/medicines', authenticateToken, async (req: any, res) => {
   try {
-    const { data: medicines, error } = await supabase
+    const sb = getSupabase();
+    if (!sb) return res.status(503).json({ error: 'Database is not configured. Add Supabase environment variables and redeploy.' });
+
+    const { data: medicines, error } = await sb
       .from('medications')
       .select('*')
       .eq('user_id', req.user.id)
@@ -253,7 +279,10 @@ app.get('/medicines', authenticateToken, async (req: any, res) => {
 app.post('/medicines', authenticateToken, async (req: any, res) => {
   const { name, dosage, frequency, reminder_time, days_of_week, start_date, end_date, risk_level, side_effects, total_reports, serious_cases } = req.body;
   try {
-    const { data, error } = await supabase
+    const sb = getSupabase();
+    if (!sb) return res.status(503).json({ error: 'Database is not configured. Add Supabase environment variables and redeploy.' });
+
+    const { data, error } = await sb
       .from('medications')
       .insert([{
         user_id: req.user.id,
@@ -281,7 +310,10 @@ app.post('/medicines', authenticateToken, async (req: any, res) => {
 
 app.delete('/medicines/:id', authenticateToken, async (req: any, res) => {
   try {
-    const { error } = await supabase
+    const sb = getSupabase();
+    if (!sb) return res.status(503).json({ error: 'Database is not configured. Add Supabase environment variables and redeploy.' });
+
+    const { error } = await sb
       .from('medications')
       .delete()
       .eq('id', req.params.id)
@@ -322,7 +354,10 @@ app.post('/adherence', authenticateToken, async (req: any, res) => {
   const { medication_id, status } = req.body;
 
   try {
-    const { data: med, error: medError } = await supabase
+    const sb = getSupabase();
+    if (!sb) return res.status(503).json({ error: 'Database is not configured. Add Supabase environment variables and redeploy.' });
+
+    const { data: med, error: medError } = await sb
       .from('medications')
       .select('*')
       .eq('id', medication_id)
@@ -339,6 +374,29 @@ app.post('/adherence', authenticateToken, async (req: any, res) => {
 
     if (error) throw error;
     res.status(201).json({ success: true });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Partial update for a medication (used by the client to update OpenFDA fields asynchronously)
+app.patch('/medicines/:id', authenticateToken, async (req: any, res) => {
+  const id = req.params.id;
+  const updates = req.body;
+  try {
+    const sb = getSupabase();
+    if (!sb) return res.status(503).json({ error: 'Database is not configured. Add Supabase environment variables and redeploy.' });
+
+    const { data, error } = await sb
+      .from('medications')
+      .update(updates)
+      .eq('id', id)
+      .eq('user_id', req.user.id)
+      .select()
+      .single();
+
+    if (error) throw error;
+    res.json({ success: true, id: data.id });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
