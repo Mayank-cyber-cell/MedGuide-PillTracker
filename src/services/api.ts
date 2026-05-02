@@ -101,6 +101,15 @@ export const api = {
         return { success: true };
       }
     },
+    update: async (id: number, data: any) => {
+      try {
+        return await api.fetch(`/medicines/${id}`, { method: 'PATCH', body: JSON.stringify(data) });
+      } catch (e: any) {
+        // fallback: return null but don't block
+        console.error('Failed to update medicine:', e.message || e);
+        return null;
+      }
+    }
   },
 
   adherence: {

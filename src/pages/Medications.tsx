@@ -1,4 +1,4 @@
-import { useState, useEffect, FormEvent } from 'react';
+import { useState, useEffect, FormEvent, useRef } from 'react';
 import { api, openFDA } from '../services/api';
 import { Medication } from '../types';
 import { Plus, Trash2, AlertCircle, Info, ShieldCheck, Activity } from 'lucide-react';
@@ -18,6 +18,7 @@ export default function Medications() {
   });
   const [fdaInfo, setFdaInfo] = useState<any>(null);
   const [checkingFda, setCheckingFda] = useState(false);
+  const checkTimeoutRef = useRef<number | null>(null);
 
   useEffect(() => {
     fetchMeds();
@@ -37,18 +38,15 @@ export default function Medications() {
   const handleAdd = async (e: FormEvent) => {
     e.preventDefault();
     try {
-      let fdaData = null;
-      if (newMed.name) {
-        fdaData = await openFDA.getDrugInfo(newMed.name);
-      }
-
-      await api.medicines.create({
+      // Create medication immediately with placeholder FDA data to avoid blocking the UI
+      const created = await api.medicines.create({
         ...newMed,
-        risk_level: fdaData?.riskLevel || 'Low',
-        side_effects: fdaData?.sideEffects || 'No common side effects reported',
-        total_reports: fdaData?.totalReports || 0,
-        serious_cases: fdaData?.seriousCases || 0
+        risk_level: 'Low',
+        side_effects: 'Fetching safety data...',
+        total_reports: 0,
+        serious_cases: 0
       });
+
       setShowAdd(false);
       setNewMed({
         name: '',
@@ -58,6 +56,27 @@ export default function Medications() {
         start_date: new Date().toISOString().split('T')[0],
       });
       fetchMeds();
+
+      // Fetch FDA data in background and update record if available
+      if (newMed.name && created?.id) {
+        (async () => {
+          try {
+            const fdaData = await openFDA.getDrugInfo(newMed.name);
+            if (fdaData) {
+              await api.medicines.update(created.id, {
+                risk_level: fdaData.riskLevel || 'Low',
+                side_effects: fdaData.sideEffects || 'No common side effects reported',
+                total_reports: fdaData.totalReports || 0,
+                serious_cases: fdaData.seriousCases || 0
+              });
+              fetchMeds();
+            }
+          } catch (err) {
+            // don't block the user; log for debugging
+            console.error('Background OpenFDA fetch failed', err);
+          }
+        })();
+      }
     } catch (e: any) {
       alert('Failed to add medication: ' + (e.message || 'Unknown error'));
     }
@@ -89,10 +108,20 @@ export default function Medications() {
 
   const checkDrugSafety = async (name: string) => {
     if (!name) return;
-    setCheckingFda(true);
-    const info = await openFDA.getDrugInfo(name);
-    setFdaInfo(info);
-    setCheckingFda(false);
+    // Debounce rapid blur/change events
+    if (checkTimeoutRef.current) window.clearTimeout(checkTimeoutRef.current);
+    checkTimeoutRef.current = window.setTimeout(async () => {
+      setCheckingFda(true);
+      try {
+        const info = await openFDA.getDrugInfo(name);
+        setFdaInfo(info);
+      } catch (err) {
+        console.error('OpenFDA check failed', err);
+        setFdaInfo(null);
+      } finally {
+        setCheckingFda(false);
+      }
+    }, 500);
   };
 
   return (
