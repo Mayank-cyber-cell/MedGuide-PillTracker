@@ -96,6 +96,7 @@ const authenticateToken = (req: any, res: any, next: any) => {
 
   if (!token) return res.sendStatus(401);
 
+  const jwt = require('jsonwebtoken');
   jwt.verify(token, JWT_SECRET, (err: any, user: any) => {
     if (err) return res.sendStatus(403);
     req.user = user;

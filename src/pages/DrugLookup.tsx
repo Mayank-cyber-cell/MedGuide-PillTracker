@@ -1,7 +1,7 @@
 import { useState, FormEvent } from 'react';
 import { Search, AlertCircle, TrendingUp, AlertTriangle, Check, Skull, Clock, Zap } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { api } from '../services/api';
+import { openFDA } from '../services/api';
 
 interface DrugData {
   name: string;
@@ -116,7 +116,11 @@ export default function DrugLookup() {
     setSearched(true);
 
     try {
-      const data = await api.fetch(`/drug-safety/${encodeURIComponent(searchQuery)}`);
+      const data = await openFDA.getDrugReport(searchQuery);
+
+      if (!data) {
+        throw new Error('OpenFDA request failed or returned no data');
+      }
 
       if (!data.results || data.results.length === 0) {
         const fallbackDrugData = buildFallbackDrugData(searchQuery);
