@@ -1,5 +1,28 @@
 const API_URL = import.meta.env.VITE_API_URL || '/api';
 
+function readJsonCache<T>(key: string): T | null {
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed?.expiresAt || parsed.expiresAt < Date.now()) return null;
+    return parsed.data as T;
+  } catch {
+    return null;
+  }
+}
+
+function writeJsonCache(key: string, data: unknown, ttlMs: number) {
+  try {
+    localStorage.setItem(key, JSON.stringify({
+      expiresAt: Date.now() + ttlMs,
+      data,
+    }));
+  } catch {
+    // Ignore storage errors.
+  }
+}
+
 export const api = {
   async fetch(endpoint: string, options: RequestInit = {}) {
     const token = localStorage.getItem('token');
@@ -73,11 +96,19 @@ export const api = {
 
   medicines: {
     list: async () => {
+      const cacheKey = 'cache_medicines';
+      const cached = readJsonCache<any[]>(cacheKey);
+      if (cached) return cached;
+
       try {
-        return await api.fetch('/medicines');
+        const data = await api.fetch('/medicines');
+        writeJsonCache(cacheKey, data, 5 * 60 * 1000);
+        return data;
       } catch (e: any) {
         if (!e.message.includes('Supabase') && !e.message.includes('API request failed') && !e.message.includes('401')) throw e;
-        return JSON.parse(localStorage.getItem('mock_medicines') || '[]');
+        const fallback = JSON.parse(localStorage.getItem('mock_medicines') || '[]');
+        writeJsonCache(cacheKey, fallback, 5 * 60 * 1000);
+        return fallback;
       }
     },
     create: async (data: any) => {
@@ -103,7 +134,9 @@ export const api = {
     },
     update: async (id: number, data: any) => {
       try {
-        return await api.fetch(`/medicines/${id}`, { method: 'PATCH', body: JSON.stringify(data) });
+        const result = await api.fetch(`/medicines/${id}`, { method: 'PATCH', body: JSON.stringify(data) });
+        localStorage.removeItem('cache_medicines');
+        return result;
       } catch (e: any) {
         // fallback: return null but don't block
         console.error('Failed to update medicine:', e.message || e);
@@ -114,16 +147,26 @@ export const api = {
 
   adherence: {
     list: async () => {
+      const cacheKey = 'cache_adherence';
+      const cached = readJsonCache<any[]>(cacheKey);
+      if (cached) return cached;
+
       try {
-        return await api.fetch('/adherence');
+        const data = await api.fetch('/adherence');
+        writeJsonCache(cacheKey, data, 5 * 60 * 1000);
+        return data;
       } catch (e: any) {
         if (!e.message.includes('Supabase') && !e.message.includes('API request failed') && !e.message.includes('401')) throw e;
-        return JSON.parse(localStorage.getItem('mock_adherence') || '[]');
+        const fallback = JSON.parse(localStorage.getItem('mock_adherence') || '[]');
+        writeJsonCache(cacheKey, fallback, 5 * 60 * 1000);
+        return fallback;
       }
     },
     record: async (data: { medication_id: number, status: string }) => {
       try {
-        return await api.fetch('/adherence', { method: 'POST', body: JSON.stringify(data) });
+        const result = await api.fetch('/adherence', { method: 'POST', body: JSON.stringify(data) });
+        localStorage.removeItem('cache_adherence');
+        return result;
       } catch (e: any) {
         if (!e.message.includes('Supabase') && !e.message.includes('API request failed') && !e.message.includes('401')) throw e;
         const adherenceList = JSON.parse(localStorage.getItem('mock_adherence') || '[]');
@@ -137,6 +180,7 @@ export const api = {
           timestamp: new Date().toISOString()
         };
         localStorage.setItem('mock_adherence', JSON.stringify([record, ...adherenceList]));
+        localStorage.removeItem('cache_adherence');
         return { success: true };
       }
     },

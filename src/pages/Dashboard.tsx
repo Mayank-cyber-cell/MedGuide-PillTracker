@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import { api } from '../services/api';
 import { Medication, AdherenceRecord } from '../types';
 import { CheckCircle2, XCircle, AlertTriangle, TrendingUp, TrendingDown, Calendar, Clock, ChevronRight, Plus } from 'lucide-react';
-import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
 import { motion } from 'motion/react';
 
 export default function Dashboard() {
@@ -145,6 +144,26 @@ export default function Dashboard() {
       const recordDate = new Date(a.timestamp).toISOString().split('T')[0];
       return a.medication_id === medId && recordDate === today;
     });
+  };
+
+  const totalChartValue = chartData.reduce((sum, item) => sum + item.value, 0);
+  const radius = 54;
+  const strokeWidth = 16;
+  const circumference = 2 * Math.PI * radius;
+
+  const chartSegments = chartData.reduce((segments, item) => {
+    const previousTotal = segments.length > 0 ? segments[segments.length - 1].end : 0;
+    const segmentLength = totalChartValue > 0 ? (item.value / totalChartValue) * circumference : 0;
+    const start = previousTotal;
+    const end = start + segmentLength;
+    segments.push({ ...item, start, end, dash: `${segmentLength} ${circumference - segmentLength}` });
+    return segments;
+  }, [] as Array<{ name: string; value: number; color: string; start: number; end: number; dash: string }>);
+
+  const getChartTextClass = (name: string) => {
+    if (name === 'Taken') return 'text-emerald-600';
+    if (name === 'Missed') return 'text-red-600';
+    return 'text-amber-600';
   };
 
   if (loading) return <div className="animate-pulse space-y-8">
@@ -370,34 +389,51 @@ export default function Dashboard() {
         <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex flex-col items-center">
           <h2 className="text-xl font-bold text-gray-900 mb-6 self-start">Adherence Stats</h2>
           <div className="h-64 w-full">
-            {chartData.length > 0 ? (
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={chartData}
-                    innerRadius={60}
-                    outerRadius={80}
-                    paddingAngle={5}
-                    dataKey="value"
-                  >
-                    {chartData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.color} />
+            {chartSegments.length > 0 ? (
+              <div className="h-full flex flex-col items-center justify-center gap-4">
+                <div className="relative w-48 h-48">
+                  <svg viewBox="0 0 140 140" className="w-full h-full -rotate-90">
+                    <circle
+                      cx="70"
+                      cy="70"
+                      r={radius}
+                      stroke="#e5e7eb"
+                      strokeWidth={strokeWidth}
+                      fill="none"
+                    />
+                    {chartSegments.map((segment, index) => (
+                      <circle
+                        key={segment.name}
+                        cx="70"
+                        cy="70"
+                        r={radius}
+                        stroke={segment.color}
+                        strokeWidth={strokeWidth}
+                        fill="none"
+                        strokeLinecap="round"
+                        strokeDasharray={segment.dash}
+                        strokeDashoffset={-segment.start}
+                        opacity={index === 0 ? 1 : 0.95}
+                      />
                     ))}
-                  </Pie>
-                  <Tooltip />
-                </PieChart>
-              </ResponsiveContainer>
+                  </svg>
+                  <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
+                    <span className="text-3xl font-bold text-gray-900">{compliance}%</span>
+                    <span className="text-xs font-semibold uppercase tracking-widest text-gray-400">Compliance</span>
+                  </div>
+                </div>
+                <div className="grid grid-cols-3 gap-4 w-full mt-2">
+                  {chartData.map(d => (
+                    <div key={d.name} className="text-center">
+                      <div className="text-xs font-bold text-gray-400 uppercase">{d.name}</div>
+                      <div className={`text-lg font-bold ${getChartTextClass(d.name)}`}>{d.value}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
             ) : (
               <div className="h-full flex items-center justify-center text-gray-400 text-sm">No data yet</div>
             )}
-          </div>
-          <div className="grid grid-cols-3 gap-4 w-full mt-4">
-            {chartData.map(d => (
-              <div key={d.name} className="text-center">
-                <div className="text-xs font-bold text-gray-400 uppercase">{d.name}</div>
-                <div className="text-lg font-bold" style={{ color: d.color }}>{d.value}</div>
-              </div>
-            ))}
           </div>
         </div>
       </div>
