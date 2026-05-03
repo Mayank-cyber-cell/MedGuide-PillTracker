@@ -4,6 +4,24 @@ import serverless from 'serverless-http';
 
 dotenv.config();
 
+// Simple response cache (1 hour TTL)
+const responseCache = new Map<string, { data: any; expires: number }>();
+const CACHE_TTL = 60 * 60 * 1000;
+
+const getCache = (key: string) => {
+  const cached = responseCache.get(key);
+  if (!cached) return null;
+  if (cached.expires < Date.now()) {
+    responseCache.delete(key);
+    return null;
+  }
+  return cached.data;
+};
+
+const setCache = (key: string, data: any) => {
+  responseCache.set(key, { data, expires: Date.now() + CACHE_TTL });
+};
+
 let supabase: any = null;
 let isSupabaseConfigured = false;
 const getSupabase = () => {
@@ -20,7 +38,23 @@ const getSupabase = () => {
 const JWT_SECRET = process.env.JWT_SECRET || 'medguide-secret-key-123';
 
 const app = express();
-app.use(express.json());
+app.use(express.json({ limit: '10kb' }));
+
+// Add cache headers to responses
+app.use((req: any, res: any, next: any) => {
+  const originalJson = res.json.bind(res);
+  res.json = function (data: any) {
+    if (req.path === '/health' || req.path.startsWith('/drug-safety') || req.path.startsWith('/debug/openfda')) {
+      res.set('Cache-Control', 'public, max-age=300, stale-while-revalidate=600');
+    } else if (req.method === 'GET') {
+      res.set('Cache-Control', 'private, max-age=60');
+    } else {
+      res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
+    }
+    return originalJson(data);
+  };
+  next();
+});
 
 app.use((req, res, next) => {
   if (req.path === '/health' || req.path.startsWith('/drug-safety') || req.path.startsWith('/debug/openfda')) {
@@ -207,54 +241,55 @@ app.get('/drug-safety/:name', async (req, res) => {
   const apiKey = process.env.OPENFDA_API_KEY;
 
   if (!apiKey) {
-    console.error('[OpenFDA] OPENFDA_API_KEY is not configured in environment variables');
-    return res.status(503).json({
-      error: 'Drug safety database is currently unavailable. Please ensure OPENFDA_API_KEY is configured in Vercel environment variables.',
-      results: []
-    });
+    return res.status(503).json({ error: 'OpenFDA API key not configured', results: [] });
+  }
+
+  // Check cache first
+  const cacheKey = `drug-safety:${drugName}`;
+  const cached = getCache(cacheKey);
+  if (cached) {
+    res.set('X-Cache', 'HIT');
+    return res.json(cached);
   }
 
   try {
-    // keep the payload small in serverless
-    const searchUrl = `https://api.fda.gov/drug/event.json?search=${encodeURIComponent(drugName)}&limit=1&api_key=${apiKey}`;
-    const response = await fetch(searchUrl);
+    // Single optimized request with timeout
+    const searchUrl = `https://api.fda.gov/drug/event.json?search=${encodeURIComponent(drugName)}&limit=5&api_key=${apiKey}`;
+    const response = await fetch(searchUrl, { 
+      signal: AbortSignal.timeout(8000),
+      headers: { 'Accept-Encoding': 'gzip' }
+    });
 
     if (!response.ok) {
-      console.error(`[OpenFDA] API returned ${response.status} for drug: ${drugName}`);
-      return res.status(404).json({
-        error: `Drug "${drugName}" not found in OpenFDA database. Try common drug names like 'Aspirin', 'Ibuprofen', or 'Acetaminophen'.`,
-        results: []
+      return res.status(404).json({ 
+        error: `Drug "${drugName}" not found in OpenFDA database.`,
+        results: [] 
       });
     }
 
     const data = await response.json();
     if (!data.results || data.results.length === 0) {
-      console.warn(`[OpenFDA] No results found for drug: ${drugName}`);
-      return res.status(404).json({
+      return res.status(404).json({ 
         error: `No adverse events found for "${drugName}".`,
-        results: []
+        results: [] 
       });
     }
 
+    // Count serious cases from results already fetched
     let seriousCases = 0;
-    try {
-      const seriousUrl = `https://api.fda.gov/drug/event.json?search=${encodeURIComponent(drugName)}+AND+serious:1&limit=1&api_key=${apiKey}`;
-      const seriousResponse = await fetch(seriousUrl);
-      if (seriousResponse.ok) {
-        const seriousData = await seriousResponse.json();
-        seriousCases = seriousData.meta?.results?.total || 0;
-      }
-    } catch (e) {
-      console.error('[OpenFDA] Error fetching serious cases:', e);
+    if (data.results) {
+      seriousCases = data.results.filter((r: any) => r.serious === 1 || r.serious === 2).length;
     }
 
-    console.log(`[OpenFDA] Successfully fetched data for ${drugName}: ${data.results.length} results`);
-    res.json({ ...data, seriousCases });
+    const responseData = { ...data, seriousCases };
+    setCache(cacheKey, responseData);
+    
+    res.set('X-Cache', 'MISS');
+    res.json(responseData);
   } catch (error: any) {
-    console.error('[OpenFDA] Fetch error:', error.message);
     res.status(500).json({ 
       error: `API error: ${error.message}`,
-      results: []
+      results: [] 
     });
   }
 });

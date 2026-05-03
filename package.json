@@ -10,7 +10,9 @@
     "preview": "vite preview",
     "start": "NODE_ENV=production tsx server.ts",
     "clean": "rm -rf dist",
-    "lint": "tsc --noEmit"
+    "lint": "tsc --noEmit",
+    "analyze": "vite build --analyze",
+    "report-size": "npm run build && du -sh dist"
   },
   "dependencies": {
     "@google/genai": "^1.29.0",
@@ -39,6 +41,7 @@
     "autoprefixer": "^10.4.21",
     "postcss": "^8.4.49",
     "tailwindcss": "^3.4.17",
+    "terser": "^5.46.2",
     "tsx": "^4.21.0",
     "typescript": "~5.8.2",
     "vite": "^6.2.0"

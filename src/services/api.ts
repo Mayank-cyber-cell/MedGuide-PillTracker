@@ -210,6 +210,23 @@ export const openFDA = {
       // Ignore cache read failures and fall through to network.
     }
 
+    // Try backend proxy first (has API key configured)
+    try {
+      const data = await api.fetch(`/drug-safety/${encodeURIComponent(drugName)}`);
+      try {
+        localStorage.setItem(cacheKey, JSON.stringify({
+          expiresAt: Date.now() + 12 * 60 * 60 * 1000,
+          data,
+        }));
+      } catch {
+        // Ignore cache write failures.
+      }
+      return data;
+    } catch (backendError) {
+      console.error('Backend OpenFDA proxy failed', backendError);
+    }
+
+    // Fallback: Try direct OpenFDA call (likely to fail without browser API key)
     const fetchWithTimeout = async (url: string, timeoutMs = 8000) => {
       const controller = new AbortController();
       const timeout = window.setTimeout(() => controller.abort(), timeoutMs);
@@ -249,22 +266,7 @@ export const openFDA = {
 
       return payload;
     } catch (directError) {
-      console.error('Direct OpenFDA fetch failed, using backend fallback', directError);
-    }
-
-    try {
-      const data = await api.fetch(`/drug-safety/${encodeURIComponent(drugName)}`);
-      try {
-        localStorage.setItem(cacheKey, JSON.stringify({
-          expiresAt: Date.now() + 12 * 60 * 60 * 1000,
-          data,
-        }));
-      } catch {
-        // Ignore cache write failures.
-      }
-      return data;
-    } catch (fallbackError) {
-      console.error('OpenFDA fallback failed', fallbackError);
+      console.error('Direct OpenFDA fetch also failed', directError);
       return null;
     }
   },
