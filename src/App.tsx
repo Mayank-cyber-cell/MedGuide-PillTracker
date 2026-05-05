@@ -1,4 +1,4 @@
-import { useState, useEffect, createContext, useContext, ReactNode, lazy, Suspense } from 'react';
+import React, { useState, useEffect, createContext, useContext, ReactNode, lazy, Suspense } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, Link, useNavigate, useLocation } from 'react-router-dom';
 import { Settings as SettingsIcon, LayoutDashboard, Pill, LogOut, User as UserIcon, Bell, ChevronLeft, ChevronRight, Menu, Search } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
@@ -22,6 +22,38 @@ function RouteFallback() {
       </div>
     </div>
   );
+}
+
+class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { hasError: boolean; error?: any }> {
+  constructor(props: any) {
+    super(props);
+    this.state = { hasError: false, error: undefined };
+  }
+
+  static getDerivedStateFromError(error: any) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: any, info: any) {
+    // Log to console or a monitoring service
+    // eslint-disable-next-line no-console
+    console.error('ErrorBoundary caught:', error, info);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="min-h-[40vh] flex items-center justify-center">
+          <div className="bg-white border border-red-100 rounded-2xl p-6 max-w-lg text-center">
+            <h3 className="text-xl font-bold text-red-700 mb-2">Something went wrong</h3>
+            <p className="text-sm text-gray-600 mb-4">The page failed to load due to a runtime error.</p>
+            <pre className="text-xs text-left overflow-auto max-h-48 bg-gray-50 p-3 rounded">{String(this.state.error)}</pre>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children as any;
+  }
 }
 
 interface AppContextType {
@@ -256,14 +288,16 @@ export default function App() {
       <Router>
         <Layout>
           <Suspense fallback={<RouteFallback />}>
-            <Routes>
-              <Route path="/login" element={!user ? <Login /> : <Navigate to="/" />} />
-              <Route path="/register" element={!user ? <Register /> : <Navigate to="/" />} />
-              <Route path="/" element={user ? <Dashboard /> : <Navigate to="/login" />} />
-              <Route path="/medications" element={user ? <Medications /> : <Navigate to="/login" />} />
-              <Route path="/drug-lookup" element={user ? <DrugLookup /> : <Navigate to="/login" />} />
-              <Route path="/settings" element={user ? <Settings /> : <Navigate to="/login" />} />
-            </Routes>
+            <ErrorBoundary>
+              <Routes>
+                <Route path="/login" element={!user ? <Login /> : <Navigate to="/" />} />
+                <Route path="/register" element={!user ? <Register /> : <Navigate to="/" />} />
+                <Route path="/" element={user ? <Dashboard /> : <Navigate to="/login" />} />
+                <Route path="/medications" element={user ? <Medications /> : <Navigate to="/login" />} />
+                <Route path="/drug-lookup" element={user ? <DrugLookup /> : <Navigate to="/login" />} />
+                <Route path="/settings" element={user ? <Settings /> : <Navigate to="/login" />} />
+              </Routes>
+            </ErrorBoundary>
           </Suspense>
         </Layout>
       </Router>
