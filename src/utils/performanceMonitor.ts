@@ -8,7 +8,7 @@ export const performanceMonitor = {
 
   end(label: string) {
     const start = this.marks.get(label);
-    if (!start) {
+    if (start === undefined) {
       console.warn(`No start mark for ${label}`);
       return;
     }
@@ -61,7 +61,7 @@ export const performanceMonitor = {
 
     console.group('📊 Web Vitals');
     Object.entries(vitals).forEach(([key, value]) => {
-      if (value && 'startTime' in value) {
+      if (typeof value === 'object' && value !== null && 'startTime' in value) {
         console.log(`${key}: ${value.startTime.toFixed(2)}ms`);
       }
     });

@@ -53,6 +53,7 @@ export default function Medications() {
         dosage: '',
         frequency: 'Daily',
         reminder_time: '08:00',
+        days_of_week: '0,1,2,3,4,5,6',
         start_date: new Date().toISOString().split('T')[0],
       });
       fetchMeds();
@@ -157,8 +158,9 @@ export default function Medications() {
               <form onSubmit={handleAdd} className="space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-1">Medicine Name</label>
+                    <label htmlFor="medicine-name" className="block text-sm font-semibold text-gray-700 mb-1">Medicine Name</label>
                     <input 
+                      id="medicine-name"
                       type="text" 
                       required 
                       className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-sky-500"
@@ -168,8 +170,9 @@ export default function Medications() {
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-1">Dosage</label>
+                    <label htmlFor="med-dosage" className="block text-sm font-semibold text-gray-700 mb-1">Dosage</label>
                     <input 
+                      id="med-dosage"
                       type="text" 
                       required 
                       placeholder="e.g. 500mg"
@@ -182,8 +185,9 @@ export default function Medications() {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-1">Frequency</label>
+                    <label htmlFor="med-frequency" className="block text-sm font-semibold text-gray-700 mb-1">Frequency</label>
                     <select 
+                      id="med-frequency"
                       className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-sky-500"
                       value={newMed.frequency}
                       onChange={(e) => setNewMed({ ...newMed, frequency: e.target.value })}
@@ -195,8 +199,9 @@ export default function Medications() {
                     </select>
                   </div>
                   <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-1">Reminder Time</label>
+                    <label htmlFor="reminder-time" className="block text-sm font-semibold text-gray-700 mb-1">Reminder Time</label>
                     <input 
+                      id="reminder-time"
                       type="time" 
                       required 
                       className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-sky-500"

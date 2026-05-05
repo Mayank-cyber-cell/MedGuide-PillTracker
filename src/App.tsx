@@ -1,4 +1,4 @@
-import React, { useState, useEffect, createContext, useContext, ReactNode, lazy, Suspense } from 'react';
+import React, { Component, useState, useEffect, createContext, useContext, ReactNode, lazy, Suspense } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, Link, useNavigate, useLocation } from 'react-router-dom';
 import { Settings as SettingsIcon, LayoutDashboard, Pill, LogOut, User as UserIcon, Bell, ChevronLeft, ChevronRight, Menu, Search } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
@@ -24,17 +24,19 @@ function RouteFallback() {
   );
 }
 
-class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { hasError: boolean; error?: any }> {
-  constructor(props: any) {
+class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean; error?: unknown }> {
+  state: { hasError: boolean; error?: unknown };
+
+  constructor(props: { children: ReactNode }) {
     super(props);
     this.state = { hasError: false, error: undefined };
   }
 
-  static getDerivedStateFromError(error: any) {
+  static getDerivedStateFromError(error: unknown) {
     return { hasError: true, error };
   }
 
-  componentDidCatch(error: any, info: any) {
+  componentDidCatch(error: unknown, info: React.ErrorInfo) {
     // Log to console or a monitoring service
     // eslint-disable-next-line no-console
     console.error('ErrorBoundary caught:', error, info);
