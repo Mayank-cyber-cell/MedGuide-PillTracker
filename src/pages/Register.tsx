@@ -14,8 +14,13 @@ export default function Register() {
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setLoading(true);
+    setError('');
     try {
-      await api.auth.register({ name, email, password });
+      await api.auth.register({
+        name: name.trim(),
+        email: email.trim().toLowerCase(),
+        password: password.trim(),
+      });
       navigate('/login');
     } catch (err: any) {
       setError(err.message || 'Error creating account.');

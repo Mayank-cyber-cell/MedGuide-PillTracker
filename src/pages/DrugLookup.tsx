@@ -26,6 +26,23 @@ interface DrugUsageInfo {
   };
 }
 
+const drugAliases: Record<string, string> = {
+  paracetamol: 'acetaminophen',
+  tylenol: 'acetaminophen',
+  dolo: 'acetaminophen',
+  crocin: 'acetaminophen',
+  calpol: 'acetaminophen',
+  advil: 'ibuprofen',
+  brufen: 'ibuprofen',
+  combiflam: 'ibuprofen',
+  disprin: 'aspirin',
+  ecosprin: 'aspirin',
+  glumetza: 'metformin',
+  glucophage: 'metformin',
+  zestril: 'lisinopril',
+  prinivil: 'lisinopril'
+};
+
 // Common drug usage information and overdose risks
 const drugUsageDatabase: DrugUsageInfo = {
   'aspirin': {
@@ -72,6 +89,20 @@ const drugUsageDatabase: DrugUsageInfo = {
   }
 };
 
+function resolveUsageInfo(name: string): DrugUsageInfo[string] | null {
+  const normalized = name.toLowerCase().trim();
+  const canonical = drugAliases[normalized] || normalized;
+
+  const direct = drugUsageDatabase[canonical];
+  if (direct) return direct;
+
+  const loose = Object.entries(drugUsageDatabase).find(([key]) =>
+    canonical.includes(key) || key.includes(canonical)
+  );
+
+  return loose ? loose[1] : null;
+}
+
 export default function DrugLookup() {
   const [searchQuery, setSearchQuery] = useState('');
   const [drugData, setDrugData] = useState<DrugData | null>(null);
@@ -82,14 +113,9 @@ export default function DrugLookup() {
   const [searched, setSearched] = useState(false);
 
   const buildFallbackDrugData = (name: string): DrugData | null => {
-    const lowerCaseName = name.toLowerCase();
-    const info = Object.entries(drugUsageDatabase).find(([key]) =>
-      lowerCaseName.includes(key) || key.includes(lowerCaseName)
-    );
+    const usage = resolveUsageInfo(name);
+    if (!usage) return null;
 
-    if (!info) return null;
-
-    const [, usage] = info;
     return {
       name: name.charAt(0).toUpperCase() + name.slice(1).toLowerCase(),
       totalReports: 0,
@@ -194,24 +220,12 @@ export default function DrugLookup() {
       });
 
       // Set usage information if available in database
-      const lowerCaseName = searchQuery.toLowerCase();
-      const info = Object.entries(drugUsageDatabase).find(([key]) => 
-        lowerCaseName.includes(key) || key.includes(lowerCaseName)
-      );
-      
-      if (info) {
-        setUsageInfo(info[1]);
-      }
+      setUsageInfo(resolveUsageInfo(searchQuery));
     } catch (err: any) {
       const fallbackDrugData = buildFallbackDrugData(searchQuery);
       if (fallbackDrugData) {
-        const lowerCaseName = searchQuery.toLowerCase();
-        const info = Object.entries(drugUsageDatabase).find(([key]) =>
-          lowerCaseName.includes(key) || key.includes(lowerCaseName)
-        );
-
         setDrugData(fallbackDrugData);
-        setUsageInfo(info?.[1] || null);
+        setUsageInfo(resolveUsageInfo(searchQuery));
         setNotice('⚠️ Live drug data temporarily unavailable. Displaying general safety information.');
       } else {
         setError(`Error fetching data: ${err.message || 'Please try a common drug name like Aspirin, Ibuprofen, or Acetaminophen.'}`);

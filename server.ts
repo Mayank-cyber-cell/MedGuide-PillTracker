@@ -27,8 +27,6 @@ function findAvailablePort(startPort: number): Promise<number> {
         resolve(findAvailablePort(startPort + 1));
         return;
       }
-      // Use a tighter limit to reduce payload and speed up responses
-      const searchUrl = `https://api.fda.gov/drug/event.json?search=${encodeURIComponent(drugName)}&limit=1&api_key=${apiKey}`;
       reject(error);
     });
 
@@ -133,8 +131,6 @@ async function startServer() {
     });
   };
 
-  // Auth Routes
-  app.post("/api/register", async (req, res) => {
   // Partial update for a medication (used to asynchronously add OpenFDA data)
   app.patch("/api/medicines/:id", authenticateToken, async (req: any, res: any) => {
     const id = req.params.id;
@@ -154,6 +150,9 @@ async function startServer() {
       res.status(500).json({ error: error.message });
     }
   });
+
+  // Auth Routes
+  app.post("/api/register", async (req, res) => {
     const { name, email, password } = req.body;
     try {
       // Check if user already exists

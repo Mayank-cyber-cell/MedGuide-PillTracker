@@ -272,6 +272,7 @@ export default function App() {
   }, [user]);
 
   const logout = () => {
+    localStorage.removeItem('token');
     localStorage.removeItem('currentUser');
     setUser(null);
   };

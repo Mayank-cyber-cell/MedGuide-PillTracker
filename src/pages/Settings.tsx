@@ -18,12 +18,12 @@ export default function Settings() {
     e.preventDefault();
     setSaving(true);
     try {
-      await api.emergencyContact.update(emergencyContact);
-      const updatedUser = await api.auth.getUser();
+      const updateResult = await api.emergencyContact.update(emergencyContact);
+      const updatedUser = updateResult?.user || await api.auth.getUser();
       setUser(updatedUser);
       alert('Emergency contact updated successfully');
-    } catch (e) {
-      alert('Failed to update contact');
+    } catch (e: any) {
+      alert(e?.message || 'Failed to update contact');
     } finally {
       setSaving(false);
     }

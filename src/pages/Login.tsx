@@ -15,9 +15,13 @@ export default function Login() {
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setLoading(true);
+    setError('');
     
     try {
-      const { token, user } = await api.auth.login({ email, password });
+      const { token, user } = await api.auth.login({
+        email: email.trim().toLowerCase(),
+        password: password.trim(),
+      });
       localStorage.setItem('token', token);
       localStorage.setItem('currentUser', JSON.stringify(user));
       setUser(user);
@@ -38,6 +42,7 @@ export default function Login() {
         password: 'password123'
       });
       localStorage.setItem('token', token);
+      localStorage.setItem('currentUser', JSON.stringify(user));
       setUser(user);
       navigate('/');
     } catch (err: any) {
