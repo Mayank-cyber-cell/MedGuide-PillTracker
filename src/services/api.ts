@@ -42,6 +42,9 @@ function shouldUseLocalFallback(errorMessage: string): boolean {
     msg.includes('api request failed') ||
     msg.includes('backend api not available') ||
     msg.includes('database is not configured') ||
+    msg.includes('timeout') ||
+    msg.includes('timed out') ||
+    msg.includes('abort') ||
     msg.includes('forbidden') ||
     msg.includes('invalid credentials') ||
     msg.includes('invalid email or password') ||
@@ -553,15 +556,17 @@ export const openFDA = {
 
   async getDrugInfo(drugName: string) {
     try {
-      const data = await openFDA.getDrugReport(drugName);
-      if (!data) return null;
-      if (!data.results || data.results.length === 0) return null;
+      const data = await this.getDrugReport(drugName);
+      if (!data || !data.results || data.results.length === 0) return null;
 
       const result = data.results[0];
-      const sideEffects = result.patient.reaction.map((r: any) => r.reactionmeddrapt).slice(0, 3).join(', ');
-      const totalReports = data.meta.results.total;
+      const sideEffects = result?.patient?.reaction
+        ?.map((reaction: any) => reaction.reactionmeddrapt)
+        .slice(0, 3)
+        .join(', ') || 'No common side effects reported';
+      const totalReports = data.meta?.results?.total || 0;
       const seriousCases = data.seriousCases || 0;
-      
+
       let riskLevel: 'Low' | 'Moderate' | 'High' = 'Low';
       if (totalReports > 10000 || seriousCases > 1000) riskLevel = 'High';
       else if (totalReports > 1000 || seriousCases > 100) riskLevel = 'Moderate';
@@ -570,11 +575,11 @@ export const openFDA = {
         sideEffects,
         totalReports,
         seriousCases,
-        riskLevel
+        riskLevel,
       };
-    } catch (e) {
-      console.error('OpenFDA error', e);
+    } catch (error) {
+      console.error('OpenFDA error', error);
       return null;
     }
-  }
+  },
 };
