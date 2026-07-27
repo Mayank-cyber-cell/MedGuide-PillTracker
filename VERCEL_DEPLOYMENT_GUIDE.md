@@ -1,5 +1,5 @@
 # MedGuide Vercel Deployment Guide
-
+ 
 ## Quick Start
 
 ### Step 1: Commit Local Changes
