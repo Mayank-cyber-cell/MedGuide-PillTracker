@@ -6,7 +6,7 @@ import jwt from "jsonwebtoken";
 import path from "path";
 import dotenv from "dotenv";
 import net from "net";
-
+ 
 dotenv.config();
 
 const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
