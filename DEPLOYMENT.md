@@ -1,7 +1,7 @@
 # Deployment Guide
 
 ## Problem Summary
-
+  
 Your application has a **backend API** (Express server in `server.ts`) that handles authentication, medication tracking, and database operations. In development, this backend runs alongside your frontend. However, in production, if you only deploy the frontend static files, the backend API routes won't be available, causing the "Unexpected token" JSON error.
 
 ## Root Cause
